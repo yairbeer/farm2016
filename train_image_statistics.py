@@ -69,9 +69,10 @@ train_files_labeled = []
 for fol in train_files_unlabeled:
     train_files_labeled.append(glob.glob(fol + '/*'))
 
-# for fol in train_files_labeled:
-#     for im_name in fol:
-#         image = imread(im_name)
+avg_classes = []
+for fol in train_files_labeled:
+    for im_name in fol:
+        image = imread(im_name)
 
 """
 Image processing

@@ -140,15 +140,31 @@ Configure train/test by drivers and images per state
 """
 driver_train_percent = 0.75
 imgs_per_driver = 10
-n_monte_carlo = 2
+n_monte_carlo = 3
+
+batch_size = 50
+nb_classes = 10
+nb_epoch = 12
+# input image dimensions
+img_rows, img_cols = img_size, img_size
+# number of convolutional filters to use
+nb_filters = 32
+# size of pooling area for max pooling
+nb_pool = 2
+# convolution kernel size
+nb_conv = 3
+
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
+test_files_gray = test_files_gray.reshape(test_files_gray.shape[0], 1, img_rows, img_cols).astype('float32')
 test_results = []
 for i_monte_carlo in range(n_monte_carlo):
-    np.random.seed(i_monte_carlo ** 2)
     # Get driver - image relation table
     drivers_index = np.unique(drivers.index.values)
+
+    np.random.seed(1000 * i_monte_carlo ** 2)
     cv_prob = np.random.sample(drivers_index.shape[0])
     train_cv_drivers = drivers_index[cv_prob < driver_train_percent]
+
     train_images = []
     # For each driver
     for driver in train_cv_drivers:
@@ -171,7 +187,6 @@ for i_monte_carlo in range(n_monte_carlo):
         test_images += list(drivers.loc[driver].img.values)
     test_images = np.array(test_images)
 
-    print(train_images, test_images)
     # train_images = drivers.loc[train_cv_drivers].img.values
 
     train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
@@ -183,33 +198,16 @@ for i_monte_carlo in range(n_monte_carlo):
         if img_name in test_images:
             test_cv_ind[i] = True
 
-    X_train, y_train = train_files_gray[train_cv_ind, :, :], train_labels[train_cv_ind]
-    X_test, y_test = train_files_gray[test_cv_ind, :, :], train_labels[test_cv_ind]
+    X_train, y_train = train_files_gray[train_cv_ind, :, :].astype('float32'), train_labels[train_cv_ind]
+    X_test, y_test = train_files_gray[test_cv_ind, :, :].astype('float32'), train_labels[test_cv_ind]
 
     """
     Compile Model
     """
-
-    np.random.seed(i_monte_carlo ** 3)  # for reproducibility
-
-    batch_size = 50
-    nb_classes = 10
-    nb_epoch = 2
-
-    # input image dimensions
-    img_rows, img_cols = img_size, img_size
-    # number of convolutional filters to use
-    nb_filters = 32
-    # size of pooling area for max pooling
-    nb_pool = 2
-    # convolution kernel size
-    nb_conv = 3
-
     # the data, shuffled and split between train and test sets
     X_train = X_train.reshape(X_train.shape[0], 1, img_rows, img_cols)
     X_test = X_test.reshape(X_test.shape[0], 1, img_rows, img_cols)
 
-    print('X_train shape:', X_train.shape)
     print(X_train.shape[0], 'train samples')
     print(X_test.shape[0], 'test samples')
 
@@ -217,6 +215,7 @@ for i_monte_carlo in range(n_monte_carlo):
     Y_train = np_utils.to_categorical(y_train, nb_classes)
     Y_test = np_utils.to_categorical(y_test, nb_classes)
 
+    np.random.seed(100 * i_monte_carlo ** 3)  # for reproducibility
     model = Sequential()
     model.add(Convolution2D(nb_filters, nb_conv, nb_conv,
                             border_mode='valid',
@@ -286,16 +285,6 @@ for i_monte_carlo in range(n_monte_carlo):
         if img_name in train_images:
             train_cv_ind[i] = True
 
-    X_train, y_train = train_files_gray[train_cv_ind, :, :], train_labels[train_cv_ind]
-
-    X_train = X_train.reshape(X_train.shape[0], 1, img_rows, img_cols)
-    test_files_gray = test_files_gray.reshape(test_files_gray.shape[0], 1, img_rows, img_cols)
-
-    # Fit the whole train data
-    print(X_train.shape[0], 'train samples')
-    print(test_files_gray.shape[0], 'test samples')
-    # model.fit(X_train, y_train, batch_size=batch_size, nb_epoch=nb_epoch, show_accuracy=True, verbose=1,
-    #           shuffle=True)
     predicted_results = model.predict_proba(test_files_gray, batch_size=batch_size, verbose=1)
     test_results.append(predicted_results)
 
