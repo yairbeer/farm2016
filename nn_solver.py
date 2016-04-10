@@ -138,169 +138,176 @@ if debug:
 """
 Configure train/test by drivers and images per state
 """
-driver_train_percent = 0.8
+driver_train_percent = 0.75
 imgs_per_driver = 10
-
-np.random.seed(2016)
-# Get driver - image relation table
+n_monte_carlo = 2
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
-drivers_index = np.unique(drivers.index.values)
-cv_prob = np.random.sample(drivers_index.shape[0])
-train_cv_drivers = drivers_index[cv_prob < driver_train_percent]
-train_images = []
-# For each driver
-for driver in train_cv_drivers:
-    driver_imgs = drivers.loc[train_cv_drivers]
-    avail_states = np.unique(driver_imgs.classname.values)
-    # For each state
-    for state in avail_states:
-        # Get imgs_per_driver images
-        driver_state_imgs = driver_imgs.iloc[np.array(driver_imgs.classname == state)].img.values
-        if imgs_per_driver < driver_state_imgs.shape[0]:
-            train_img_index = np.random.choice(driver_state_imgs.shape[0], imgs_per_driver, replace=False)
-            train_images += list(driver_state_imgs[train_img_index])
-        else:
-            train_images += list(driver_state_imgs)
-train_images = np.array(train_images)
+test_results = []
+for i_monte_carlo in range(n_monte_carlo):
+    np.random.seed(i_monte_carlo ** 2)
+    # Get driver - image relation table
+    drivers_index = np.unique(drivers.index.values)
+    cv_prob = np.random.sample(drivers_index.shape[0])
+    train_cv_drivers = drivers_index[cv_prob < driver_train_percent]
+    train_images = []
+    # For each driver
+    for driver in train_cv_drivers:
+        driver_imgs = drivers.loc[train_cv_drivers]
+        avail_states = np.unique(driver_imgs.classname.values)
+        # For each state
+        for state in avail_states:
+            # Get imgs_per_driver images
+            driver_state_imgs = driver_imgs.iloc[np.array(driver_imgs.classname == state)].img.values
+            if imgs_per_driver < driver_state_imgs.shape[0]:
+                train_img_index = np.random.choice(driver_state_imgs.shape[0], imgs_per_driver, replace=False)
+                train_images += list(driver_state_imgs[train_img_index])
+            else:
+                train_images += list(driver_state_imgs)
+    train_images = np.array(train_images)
 
-test_images = []
-test_cv_drivers = drivers_index[cv_prob >= 0.5]
-for driver in test_cv_drivers:
-    test_images += list(drivers.loc[driver].img.values)
-test_images = np.array(test_images)
+    test_images = []
+    test_cv_drivers = drivers_index[cv_prob >= driver_train_percent]
+    for driver in test_cv_drivers:
+        test_images += list(drivers.loc[driver].img.values)
+    test_images = np.array(test_images)
 
-print(train_images, test_images)
-# train_images = drivers.loc[train_cv_drivers].img.values
+    print(train_images, test_images)
+    # train_images = drivers.loc[train_cv_drivers].img.values
 
+    train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
+    test_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
+    for i, file_name in enumerate(train_names):
+        img_name = file_name.split('/')[-1]
+        if img_name in train_images:
+            train_cv_ind[i] = True
+        if img_name in test_images:
+            test_cv_ind[i] = True
 
-train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
-test_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
-for i, file_name in enumerate(train_names):
-    img_name = file_name.split('/')[-1]
-    if img_name in train_images:
-        train_cv_ind[i] = True
-    if img_name in test_images:
-        test_cv_ind[i] = True
+    X_train, y_train = train_files_gray[train_cv_ind, :, :], train_labels[train_cv_ind]
+    X_test, y_test = train_files_gray[test_cv_ind, :, :], train_labels[test_cv_ind]
 
-np.random.seed(2016)
-X_train, y_train = train_files_gray[train_cv_ind, :, :], train_labels[train_cv_ind]
-X_test, y_test = train_files_gray[test_cv_ind, :, :], train_labels[test_cv_ind]
+    """
+    Compile Model
+    """
 
-"""
-Compile Model
-"""
+    np.random.seed(i_monte_carlo ** 3)  # for reproducibility
 
-np.random.seed(1337)  # for reproducibility
+    batch_size = 50
+    nb_classes = 10
+    nb_epoch = 2
 
-batch_size = 50
-nb_classes = 10
-nb_epoch = 10
+    # input image dimensions
+    img_rows, img_cols = img_size, img_size
+    # number of convolutional filters to use
+    nb_filters = 32
+    # size of pooling area for max pooling
+    nb_pool = 2
+    # convolution kernel size
+    nb_conv = 3
 
-# input image dimensions
-img_rows, img_cols = img_size, img_size
-# number of convolutional filters to use
-nb_filters = 32
-# size of pooling area for max pooling
-nb_pool = 2
-# convolution kernel size
-nb_conv = 3
+    # the data, shuffled and split between train and test sets
+    X_train = X_train.reshape(X_train.shape[0], 1, img_rows, img_cols)
+    X_test = X_test.reshape(X_test.shape[0], 1, img_rows, img_cols)
 
-# the data, shuffled and split between train and test sets
-X_train = X_train.reshape(X_train.shape[0], 1, img_rows, img_cols)
-X_test = X_test.reshape(X_test.shape[0], 1, img_rows, img_cols)
+    print('X_train shape:', X_train.shape)
+    print(X_train.shape[0], 'train samples')
+    print(X_test.shape[0], 'test samples')
 
-print('X_train shape:', X_train.shape)
-print(X_train.shape[0], 'train samples')
-print(X_test.shape[0], 'test samples')
+    # convert class vectors to binary class matrices
+    Y_train = np_utils.to_categorical(y_train, nb_classes)
+    Y_test = np_utils.to_categorical(y_test, nb_classes)
 
-# convert class vectors to binary class matrices
-Y_train = np_utils.to_categorical(y_train, nb_classes)
-Y_test = np_utils.to_categorical(y_test, nb_classes)
+    model = Sequential()
+    model.add(Convolution2D(nb_filters, nb_conv, nb_conv,
+                            border_mode='valid',
+                            input_shape=(1, img_rows, img_cols)))
+    model.add(Activation('relu'))
 
-model = Sequential()
-model.add(Convolution2D(nb_filters, nb_conv, nb_conv,
-                        border_mode='valid',
-                        input_shape=(1, img_rows, img_cols)))
-model.add(Activation('relu'))
+    """
+    inner layers start
+    """
+    model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
+    model.add(Dropout(0.5))
+    model.add(Activation('relu'))
+    """
+    inner layers stop
+    """
 
-"""
-inner layers start
-"""
-model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
-model.add(Activation('relu'))
-model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-model.add(Dropout(0.5))
-model.add(Activation('relu'))
-"""
-inner layers stop
-"""
+    model.add(Flatten())
+    model.add(Dense(50))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(nb_classes))
+    model.add(Activation('softmax'))
 
-model.add(Flatten())
-model.add(Dense(50))
-model.add(Activation('relu'))
-model.add(Dropout(0.5))
-model.add(Dense(nb_classes))
-model.add(Activation('softmax'))
+    model.compile(loss='categorical_crossentropy', optimizer='adadelta')
 
-model.compile(loss='categorical_crossentropy', optimizer='adadelta')
+    """
+    CV model
+    """
+    model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
+              show_accuracy=True, verbose=1, validation_data=(X_test, Y_test), shuffle=True)
+    # score = model.evaluate(X_test, Y_test, show_accuracy=True, verbose=0)
+    # print('Test score:', score[0])
+    # print('Test accuracy:', score[1])
 
-"""
-CV model
-"""
-model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
-          show_accuracy=True, verbose=1, validation_data=(X_test, Y_test), shuffle=True)
-# score = model.evaluate(X_test, Y_test, show_accuracy=True, verbose=0)
-# print('Test score:', score[0])
-# print('Test accuracy:', score[1])
+    """
+    Get accuracy
+    """
+    # predicted_results = model.predict_classes(X_test, batch_size=batch_size, verbose=1)
+    # print(label_encoder.inverse_transform(predicted_results))
+    # print(label_encoder.inverse_transform(y_test))
 
-"""
-Get accuracy
-"""
-# predicted_results = model.predict_classes(X_test, batch_size=batch_size, verbose=1)
-# print(label_encoder.inverse_transform(predicted_results))
-# print(label_encoder.inverse_transform(y_test))
+    """
+    Solve and submit test
+    """
+    train_labels = np_utils.to_categorical(train_labels, nb_classes)
+    train_images = []
+    # For each driver
+    for driver in drivers_index:
+        driver_imgs = drivers.loc[train_cv_drivers]
+        avail_states = np.unique(driver_imgs.classname.values)
+        # For each state
+        for state in avail_states:
+            # Get imgs_per_driver images
+            driver_state_imgs = driver_imgs.iloc[np.array(driver_imgs.classname == state)].img.values
+            if imgs_per_driver < driver_state_imgs.shape[0]:
+                train_img_index = np.random.choice(driver_state_imgs.shape[0], imgs_per_driver, replace=False)
+                train_images += list(driver_state_imgs[train_img_index])
+            else:
+                train_images += list(driver_state_imgs)
+    train_images = np.array(train_images)
 
-"""
-Solve and submit test
-"""
-train_labels = np_utils.to_categorical(train_labels, nb_classes)
-train_images = []
-# For each driver
-for driver in drivers_index:
-    driver_imgs = drivers.loc[train_cv_drivers]
-    avail_states = np.unique(driver_imgs.classname.values)
-    # For each state
-    for state in avail_states:
-        # Get imgs_per_driver images
-        driver_state_imgs = driver_imgs.iloc[np.array(driver_imgs.classname == state)].img.values
-        if imgs_per_driver < driver_state_imgs.shape[0]:
-            train_img_index = np.random.choice(driver_state_imgs.shape[0], imgs_per_driver, replace=False)
-            train_images += list(driver_state_imgs[train_img_index])
-        else:
-            train_images += list(driver_state_imgs)
-train_images = np.array(train_images)
+    train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
+    for i, file_name in enumerate(train_names):
+        img_name = file_name.split('/')[-1]
+        if img_name in train_images:
+            train_cv_ind[i] = True
 
-train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
-for i, file_name in enumerate(train_names):
-    img_name = file_name.split('/')[-1]
-    if img_name in train_images:
-        train_cv_ind[i] = True
+    X_train, y_train = train_files_gray[train_cv_ind, :, :], train_labels[train_cv_ind]
 
-X_train, y_train = train_files_gray[train_cv_ind, :, :], train_labels[train_cv_ind]
+    X_train = X_train.reshape(X_train.shape[0], 1, img_rows, img_cols)
+    test_files_gray = test_files_gray.reshape(test_files_gray.shape[0], 1, img_rows, img_cols)
 
-train_files_gray = train_files_gray.reshape(train_files_gray.shape[0], 1, img_rows, img_cols)
-test_files_gray = test_files_gray.reshape(test_files_gray.shape[0], 1, img_rows, img_cols)
-
-# Fit the whole train data
-model.fit(train_files_gray, train_labels, batch_size=batch_size, nb_epoch=nb_epoch, show_accuracy=True, verbose=1,
-          shuffle=True)
-predicted_results = model.predict_proba(test_files_gray, batch_size=batch_size, verbose=1)
-print(predicted_results)
-print(predicted_results.shape)
+    # Fit the whole train data
+    print(X_train.shape[0], 'train samples')
+    print(test_files_gray.shape[0], 'test samples')
+    # model.fit(X_train, y_train, batch_size=batch_size, nb_epoch=nb_epoch, show_accuracy=True, verbose=1,
+    #           shuffle=True)
+    predicted_results = model.predict_proba(test_files_gray, batch_size=batch_size, verbose=1)
+    test_results.append(predicted_results)
 
 sub_file = pd.DataFrame.from_csv('sample_submission.csv')
 sub_file.iloc[:, :] = predicted_results
 sub_file = sub_file.fillna(0.1)
+
+predicted_results = np.zeros(sub_file.shape)
+for mat in test_results:
+    predicted_results += mat
+predicted_results /= len(test_results)
+print(predicted_results)
 
 # Ordering sample index when needed
 test_index = []

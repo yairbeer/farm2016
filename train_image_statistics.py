@@ -2,11 +2,13 @@ import glob
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from skimage.io import imread
+from skimage.io import imread, imsave
 from skimage.color import gray2rgb, rgb2gray
 from skimage.color.adapt_rgb import adapt_rgb, each_channel
 from skimage import filters
 from skimage import exposure
+from skimage.transform import resize
+import os
 
 
 def img_draw(im_arr, im_names, n_imgs):
@@ -52,30 +54,28 @@ debug_n = 64
 """
 Import images
 """
-
-# Train
+# Set path of data files
 path = "imgs"
-train_folders = sorted(glob.glob(path + "/train/*"))
-train_names = []
-for fol in train_folders:
-    train_names += (glob.glob(fol + '/*'))
 
-train_files = np.zeros((len(train_names), 640, 480, 3)).astype('float32')
-train_labels = np.zeros((len(train_names),)).astype(str)
-for i, name_file in enumerate(train_names):
-    image = imp_img(name_file)
-    train_files[i, :, :, :] = image
-    train_labels[i] = name_file.split('/')[-2]
+if not os.path.exists(path + "/trainResized"):
+    os.makedirs(path + "/trainResized")
 
-train_files /= 255
 
-print(train_files.shape)
+img_size = 40
+
+train_files_unlabeled = sorted(glob.glob(path + "/trainResized/*"))
+
+train_files_labeled = []
+for fol in train_files_unlabeled:
+    train_files_labeled.append(glob.glob(fol + '/*'))
+
+# for fol in train_files_labeled:
+#     for im_name in fol:
+#         image = imread(im_name)
 
 """
 Image processing
 """
-if debug:
-    img_draw(train_files, train_names, debug_n)
 
 # # Contrast streching
 # for i, img_file in enumerate(train_files):
