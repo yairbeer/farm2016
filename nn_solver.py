@@ -45,30 +45,33 @@ def sobel_each(image):
 
 @adapt_rgb(each_channel)
 def rescale_intensity_each(image):
-    plow, phigh = np.percentile(img_file, (10, 90))
+    plow, phigh = np.percentile(img_file, (0, 100))
     return np.clip(exposure.rescale_intensity(image, in_range=(plow, phigh)), 0, 1)
 
 """
 Vars
 """
-submit_name = 'cnn_sobeleach_gray_contrast_fix_added_layer.csv'
+submit_name = 'benchmark.csv'
 debug = False
 debug_n = 64
 """
 Import images
 """
-img_size = 40
+img_size = 30
 
 # Train
-path = "data"
-train_names = sorted(glob.glob(path + "/trainResized/*"))
-train_labels_index = pd.DataFrame.from_csv('trainLabels.csv')
+path = "imgs"
+train_folders = sorted(glob.glob(path + "/trainResized/*"))
+train_names = []
+for fol in train_folders:
+    train_names += (glob.glob(fol + '/*'))
+
 train_files = np.zeros((len(train_names), img_size, img_size, 3)).astype('float32')
 train_labels = np.zeros((len(train_names),)).astype(str)
 for i, name_file in enumerate(train_names):
     image = imp_img(name_file)
     train_files[i, :, :, :] = image
-    train_labels[i] = train_labels_index.loc[int(name_file.split('.')[0].split('/')[-1])]['Class']
+    train_labels[i] = name_file.split('/')[-2]
 
 # Test
 test_names = sorted(glob.glob(path + "/testResized/*"))
@@ -100,14 +103,14 @@ for i, img_file in enumerate(test_files):
 if debug:
     img_draw(train_files, train_names, debug_n)
 
-# Find borders
-for i, img_file in enumerate(train_files):
-    train_files[i, :, :, :] = sobel_each(img_file)
-for i, img_file in enumerate(test_files):
-    test_files[i, :, :, :] = sobel_each(img_file)
-
-if debug:
-    img_draw(train_files, train_names, debug_n)
+# # Find borders
+# for i, img_file in enumerate(train_files):
+#     train_files[i, :, :, :] = sobel_each(img_file)
+# for i, img_file in enumerate(test_files):
+#     test_files[i, :, :, :] = sobel_each(img_file)
+#
+# if debug:
+#     img_draw(train_files, train_names, debug_n)
 
 train_files_gray = np.zeros((len(train_names), img_size, img_size)).astype('float32')
 test_files_gray = np.zeros((len(test_names), img_size, img_size)).astype('float32')
@@ -137,8 +140,8 @@ Configure train/test
 """
 np.random.seed(2016)
 cv_prob = np.random.sample(train_files.shape[0])
-train_cv_ind = cv_prob < 0.75
-test_cv_ind = cv_prob >= 0.75
+train_cv_ind = cv_prob < 0.25
+test_cv_ind = cv_prob >= 0.25
 X_train, y_train = train_files_gray[train_cv_ind, :, :], train_labels[train_cv_ind]
 X_test, y_test = train_files_gray[test_cv_ind, :, :], train_labels[test_cv_ind]
 
@@ -148,9 +151,9 @@ Compile Model
 
 np.random.seed(1337)  # for reproducibility
 
-batch_size = 196
-nb_classes = 62
-nb_epoch = 50
+batch_size = 128
+nb_classes = 10
+nb_epoch = 20
 
 # input image dimensions
 img_rows, img_cols = img_size, img_size
@@ -179,6 +182,7 @@ model.add(Convolution2D(nb_filters, nb_conv, nb_conv,
                         border_mode='valid',
                         input_shape=(1, img_rows, img_cols)))
 model.add(Activation('relu'))
+
 """
 inner layers start
 """
@@ -187,11 +191,6 @@ model.add(Activation('tanh'))
 model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
 model.add(Dropout(0.25))
 model.add(Activation('tanh'))
-model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
-model.add(Activation('relu'))
-model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-model.add(Dropout(0.25))
-model.add(Activation('relu'))
 """
 inner layers stop
 """
@@ -210,16 +209,16 @@ CV model
 """
 model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
           show_accuracy=True, verbose=1, validation_data=(X_test, Y_test))
-score = model.evaluate(X_test, Y_test, show_accuracy=True, verbose=0)
-print('Test score:', score[0])
-print('Test accuracy:', score[1])
+# score = model.evaluate(X_test, Y_test, show_accuracy=True, verbose=0)
+# print('Test score:', score[0])
+# print('Test accuracy:', score[1])
 
 """
 Get accuracy
 """
-predicted_results = model.predict_classes(X_test, batch_size=batch_size, verbose=1)
-print(label_encoder.inverse_transform(predicted_results))
-print(label_encoder.inverse_transform(y_test))
+# predicted_results = model.predict_classes(X_test, batch_size=batch_size, verbose=1)
+# print(label_encoder.inverse_transform(predicted_results))
+# print(label_encoder.inverse_transform(y_test))
 
 """
 Solve and submit test
@@ -230,26 +229,20 @@ test_files_gray = test_files_gray.reshape(test_files_gray.shape[0], 1, img_rows,
 
 # Fit the whole train data
 model.fit(train_files_gray, train_labels, batch_size=batch_size, nb_epoch=nb_epoch, show_accuracy=True, verbose=1)
-predicted_results = model.predict_classes(test_files_gray, batch_size=batch_size, verbose=1)
-predicted_results = label_encoder.inverse_transform(predicted_results)
+predicted_results = model.predict_proba(test_files_gray, batch_size=batch_size, verbose=1)
+print(predicted_results)
+print(predicted_results.shape)
 
-test_index = []
-for file_name in test_names:
-    test_index.append(int(file_name.split('.')[0].split('/')[-1]))
+sub_file = pd.DataFrame.from_csv('sample_submission.csv')
+sub_file.iloc[:, :] = predicted_results
+sub_file = sub_file.fillna(0.1)
 
-sub_file = pd.DataFrame.from_csv('sampleSubmission.csv')
-sub_file.Class = predicted_results
-sub_file.index = test_index
-sub_file.index.name = 'ID'
+# # Ordering sample index when needed
+# test_index = []
+# for file_name in test_names:
+#     test_index.append(file_name.split('.')[0].split('/')[-1])
+# sub_file.index = test_index
 
 sub_file.to_csv(submit_name)
 
-# each_border -> rgb2gray: 0.7018
-# each_rescale_intensity -> each_border -> rgb2gray: 0.7081
-# each_rescale_intensity -> each_border -> each_rescale_intensity -> rgb2gray:
-# Epoch 15, val_loss: 1.2972 - val_acc: 0.7069
-# each_rescale_intensity -> each_border -> rgb2gray -> rescale_intensity: Epoch 12, val_loss: 1.2152 - val_acc: 0.7037
-# each_equalize_hist -> each_border -> rgb2gray -> equalize_hist: Epoch 16, val_loss: 1.2984 - val_acc: 0.6846
-# each_rescale_intensity -> each_border -> rgb2gray -> rescale_intensity, sobel(10, 90):
-# Epoch 18, val_loss: 1.2860 - val_acc: 0.7094
-# Added Con + Max layers: Epoch 30, val_loss: 1.0905 - val_acc: 0.7297
+# each_rescale_intensity -> each_border -> rgb2gray -> rescale_intensity:
