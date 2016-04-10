@@ -51,7 +51,7 @@ def rescale_intensity_each(image):
 """
 Vars
 """
-submit_name = 'benchmark.csv'
+submit_name = 'benchmark_monte_carlo.csv'
 debug = False
 debug_n = 64
 """
@@ -204,9 +204,6 @@ for i_monte_carlo in range(n_monte_carlo):
     X_train, Y_train = train_files_gray[train_cv_ind, :, :].astype('float32'), train_labels_dummy[train_cv_ind, :]
     X_test, Y_test = train_files_gray[test_cv_ind, :, :].astype('float32'), train_labels_dummy[test_cv_ind, :]
 
-    print(X_train, Y_train)
-    print(X_test, Y_test)
-
     """
     Compile Model
     """
@@ -286,26 +283,26 @@ for i_monte_carlo in range(n_monte_carlo):
             train_cv_ind[i] = True
     del model
 
-#     predicted_results = model.predict_proba(test_files_gray, batch_size=batch_size, verbose=1)
-#     test_results.append(predicted_results)
-#
-# sub_file = pd.DataFrame.from_csv('sample_submission.csv')
-# sub_file.iloc[:, :] = predicted_results
-# sub_file = sub_file.fillna(0.1)
-#
-# predicted_results = np.zeros(sub_file.shape)
-# for mat in test_results:
-#     predicted_results += mat
-# predicted_results /= len(test_results)
-# print(predicted_results)
-#
-# # Ordering sample index when needed
-# test_index = []
-# for file_name in test_names:
-#     test_index.append(file_name.split('/')[-1])
-# sub_file.index = test_index
-# sub_file.index.name = 'img'
-#
-# sub_file.to_csv(submit_name)
+    predicted_results = model.predict_proba(test_files_gray, batch_size=batch_size, verbose=1)
+    test_results.append(predicted_results)
+
+sub_file = pd.DataFrame.from_csv('sample_submission.csv')
+sub_file.iloc[:, :] = predicted_results
+sub_file = sub_file.fillna(0.1)
+
+predicted_results = np.zeros(sub_file.shape)
+for mat in test_results:
+    predicted_results += mat
+predicted_results /= len(test_results)
+print(predicted_results)
+
+# Ordering sample index when needed
+test_index = []
+for file_name in test_names:
+    test_index.append(file_name.split('/')[-1])
+sub_file.index = test_index
+sub_file.index.name = 'img'
+
+sub_file.to_csv(submit_name)
 
 # each_rescale_intensity -> each_border -> rgb2gray -> rescale_intensity:
