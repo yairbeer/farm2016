@@ -146,7 +146,7 @@ np.random.seed(2016)
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 drivers_index = np.unique(drivers.index.values)
 cv_prob = np.random.sample(drivers_index.shape[0])
-train_cv_drivers = drivers_index[cv_prob < 0.5]
+train_cv_drivers = drivers_index[cv_prob < driver_train_percent]
 train_images = []
 # For each driver
 for driver in train_cv_drivers:
@@ -229,14 +229,14 @@ inner layers start
 model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
 model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-model.add(Dropout(0.25))
+model.add(Dropout(0.5))
 model.add(Activation('relu'))
 """
 inner layers stop
 """
 
 model.add(Flatten())
-model.add(Dense(64))
+model.add(Dense(50))
 model.add(Activation('relu'))
 model.add(Dropout(0.5))
 model.add(Dense(nb_classes))
@@ -264,6 +264,30 @@ Get accuracy
 Solve and submit test
 """
 train_labels = np_utils.to_categorical(train_labels, nb_classes)
+train_images = []
+# For each driver
+for driver in drivers_index:
+    driver_imgs = drivers.loc[train_cv_drivers]
+    avail_states = np.unique(driver_imgs.classname.values)
+    # For each state
+    for state in avail_states:
+        # Get imgs_per_driver images
+        driver_state_imgs = driver_imgs.iloc[np.array(driver_imgs.classname == state)].img.values
+        if imgs_per_driver < driver_state_imgs.shape[0]:
+            train_img_index = np.random.choice(driver_state_imgs.shape[0], imgs_per_driver, replace=False)
+            train_images += list(driver_state_imgs[train_img_index])
+        else:
+            train_images += list(driver_state_imgs)
+train_images = np.array(train_images)
+
+train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
+for i, file_name in enumerate(train_names):
+    img_name = file_name.split('/')[-1]
+    if img_name in train_images:
+        train_cv_ind[i] = True
+
+X_train, y_train = train_files_gray[train_cv_ind, :, :], train_labels[train_cv_ind]
+
 train_files_gray = train_files_gray.reshape(train_files_gray.shape[0], 1, img_rows, img_cols)
 test_files_gray = test_files_gray.reshape(test_files_gray.shape[0], 1, img_rows, img_cols)
 
