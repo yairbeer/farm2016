@@ -57,7 +57,7 @@ debug_n = 64
 """
 Import images
 """
-img_size = 40
+img_size = 30
 
 # Train
 path = "imgs"
@@ -140,11 +140,11 @@ Configure train/test by drivers and images per state
 """
 driver_train_percent = 0.75
 imgs_per_driver = 10
-n_monte_carlo = 5
+n_monte_carlo = 2
 
 batch_size = 50
 nb_classes = 10
-nb_epoch = 12
+nb_epoch = 4
 # input image dimensions
 img_rows, img_cols = img_size, img_size
 # number of convolutional filters to use
@@ -154,34 +154,10 @@ nb_pool = 2
 # convolution kernel size
 nb_conv = 3
 
-model = Sequential()
-model.add(Convolution2D(nb_filters, nb_conv, nb_conv,
-                        border_mode='valid',
-                        input_shape=(1, img_rows, img_cols)))
-model.add(Activation('relu'))
-
-"""
-inner layers start
-"""
-model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
-model.add(Activation('relu'))
-model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-model.add(Dropout(0.5))
-model.add(Activation('relu'))
-"""
-inner layers stop
-"""
-
-model.add(Flatten())
-model.add(Dense(50))
-model.add(Activation('relu'))
-model.add(Dropout(0.5))
-model.add(Dense(nb_classes))
-model.add(Activation('softmax'))
-model.compile(loss='categorical_crossentropy', optimizer='adadelta')
-
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 test_files_gray = test_files_gray.reshape(test_files_gray.shape[0], 1, img_rows, img_cols).astype('float32')
+train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
+test_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
 test_results = []
 for i_monte_carlo in range(n_monte_carlo):
     # Get driver - image relation table
@@ -213,8 +189,6 @@ for i_monte_carlo in range(n_monte_carlo):
         test_images += list(drivers.loc[driver].img.values)
     test_images = np.array(test_images)
 
-    train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
-    test_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
     for i, file_name in enumerate(train_names):
         img_name = file_name.split('/')[-1]
         if img_name in train_images:
@@ -244,7 +218,31 @@ for i_monte_carlo in range(n_monte_carlo):
     """
     CV model
     """
-    model.reset_states()
+    model = Sequential()
+    model.add(Convolution2D(nb_filters, nb_conv, nb_conv,
+                            border_mode='valid', input_shape=(1, img_rows, img_cols), init='glorot_uniform'))
+    model.add(Activation('relu'))
+
+    """
+    inner layers start
+    """
+    model.add(Convolution2D(nb_filters, nb_conv, nb_conv, init='glorot_uniform'))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
+    model.add(Dropout(0.5))
+    model.add(Activation('relu'))
+    """
+    inner layers stop
+    """
+
+    model.add(Flatten())
+    model.add(Dense(50, init='glorot_uniform'))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(nb_classes))
+    model.add(Activation('softmax'))
+    model.compile(loss='categorical_crossentropy', optimizer='adadelta')
+    model = model.reset()
     model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
               show_accuracy=True, verbose=1, validation_data=(X_test, Y_test), shuffle=True)
     # score = model.evaluate(X_test, Y_test, show_accuracy=True, verbose=0)
@@ -283,27 +281,28 @@ for i_monte_carlo in range(n_monte_carlo):
         img_name = file_name.split('/')[-1]
         if img_name in train_images:
             train_cv_ind[i] = True
+    del model
 
-    predicted_results = model.predict_proba(test_files_gray, batch_size=batch_size, verbose=1)
-    test_results.append(predicted_results)
-
-sub_file = pd.DataFrame.from_csv('sample_submission.csv')
-sub_file.iloc[:, :] = predicted_results
-sub_file = sub_file.fillna(0.1)
-
-predicted_results = np.zeros(sub_file.shape)
-for mat in test_results:
-    predicted_results += mat
-predicted_results /= len(test_results)
-print(predicted_results)
-
-# Ordering sample index when needed
-test_index = []
-for file_name in test_names:
-    test_index.append(file_name.split('/')[-1])
-sub_file.index = test_index
-sub_file.index.name = 'img'
-
-sub_file.to_csv(submit_name)
+#     predicted_results = model.predict_proba(test_files_gray, batch_size=batch_size, verbose=1)
+#     test_results.append(predicted_results)
+#
+# sub_file = pd.DataFrame.from_csv('sample_submission.csv')
+# sub_file.iloc[:, :] = predicted_results
+# sub_file = sub_file.fillna(0.1)
+#
+# predicted_results = np.zeros(sub_file.shape)
+# for mat in test_results:
+#     predicted_results += mat
+# predicted_results /= len(test_results)
+# print(predicted_results)
+#
+# # Ordering sample index when needed
+# test_index = []
+# for file_name in test_names:
+#     test_index.append(file_name.split('/')[-1])
+# sub_file.index = test_index
+# sub_file.index.name = 'img'
+#
+# sub_file.to_csv(submit_name)
 
 # each_rescale_intensity -> each_border -> rgb2gray -> rescale_intensity:
