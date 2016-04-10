@@ -140,7 +140,7 @@ Configure train/test by drivers and images per state
 """
 driver_train_percent = 0.75
 imgs_per_driver = 10
-n_monte_carlo = 3
+n_monte_carlo = 5
 
 batch_size = 50
 nb_classes = 10
@@ -153,6 +153,32 @@ nb_filters = 32
 nb_pool = 2
 # convolution kernel size
 nb_conv = 3
+
+model = Sequential()
+model.add(Convolution2D(nb_filters, nb_conv, nb_conv,
+                        border_mode='valid',
+                        input_shape=(1, img_rows, img_cols)))
+model.add(Activation('relu'))
+
+"""
+inner layers start
+"""
+model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
+model.add(Dropout(0.5))
+model.add(Activation('relu'))
+"""
+inner layers stop
+"""
+
+model.add(Flatten())
+model.add(Dense(50))
+model.add(Activation('relu'))
+model.add(Dropout(0.5))
+model.add(Dense(nb_classes))
+model.add(Activation('softmax'))
+model.compile(loss='categorical_crossentropy', optimizer='adadelta')
 
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 test_files_gray = test_files_gray.reshape(test_files_gray.shape[0], 1, img_rows, img_cols).astype('float32')
@@ -187,8 +213,6 @@ for i_monte_carlo in range(n_monte_carlo):
         test_images += list(drivers.loc[driver].img.values)
     test_images = np.array(test_images)
 
-    # train_images = drivers.loc[train_cv_drivers].img.values
-
     train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
     test_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
     for i, file_name in enumerate(train_names):
@@ -216,36 +240,11 @@ for i_monte_carlo in range(n_monte_carlo):
     Y_test = np_utils.to_categorical(y_test, nb_classes)
 
     np.random.seed(100 * i_monte_carlo ** 3)  # for reproducibility
-    model = Sequential()
-    model.add(Convolution2D(nb_filters, nb_conv, nb_conv,
-                            border_mode='valid',
-                            input_shape=(1, img_rows, img_cols)))
-    model.add(Activation('relu'))
-
-    """
-    inner layers start
-    """
-    model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-    model.add(Dropout(0.5))
-    model.add(Activation('relu'))
-    """
-    inner layers stop
-    """
-
-    model.add(Flatten())
-    model.add(Dense(50))
-    model.add(Activation('relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(nb_classes))
-    model.add(Activation('softmax'))
-
-    model.compile(loss='categorical_crossentropy', optimizer='adadelta')
 
     """
     CV model
     """
+    model.reset_states()
     model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
               show_accuracy=True, verbose=1, validation_data=(X_test, Y_test), shuffle=True)
     # score = model.evaluate(X_test, Y_test, show_accuracy=True, verbose=0)
