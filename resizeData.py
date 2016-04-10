@@ -11,7 +11,7 @@ if not os.path.exists(path + "/trainResized"):
 if not os.path.exists(path + "/testResized"):
     os.makedirs(path + "/testResized")
 
-img_size = 30
+img_size = 40
 
 train_files_unlabeled = sorted(glob.glob(path + "/train/*"))
 for fol in train_files_unlabeled:

@@ -45,7 +45,7 @@ def sobel_each(image):
 
 @adapt_rgb(each_channel)
 def rescale_intensity_each(image):
-    plow, phigh = np.percentile(img_file, (0, 100))
+    plow, phigh = np.percentile(image, (0, 100))
     return np.clip(exposure.rescale_intensity(image, in_range=(plow, phigh)), 0, 1)
 
 """
@@ -57,7 +57,7 @@ debug_n = 64
 """
 Import images
 """
-img_size = 30
+img_size = 40
 
 # Train
 path = "imgs"
@@ -103,14 +103,14 @@ for i, img_file in enumerate(test_files):
 if debug:
     img_draw(train_files, train_names, debug_n)
 
-# # Find borders
-# for i, img_file in enumerate(train_files):
-#     train_files[i, :, :, :] = sobel_each(img_file)
-# for i, img_file in enumerate(test_files):
-#     test_files[i, :, :, :] = sobel_each(img_file)
-#
-# if debug:
-#     img_draw(train_files, train_names, debug_n)
+# Find borders
+for i, img_file in enumerate(train_files):
+    train_files[i, :, :, :] = sobel_each(img_file)
+for i, img_file in enumerate(test_files):
+    test_files[i, :, :, :] = sobel_each(img_file)
+
+if debug:
+    img_draw(train_files, train_names, debug_n)
 
 train_files_gray = np.zeros((len(train_names), img_size, img_size)).astype('float32')
 test_files_gray = np.zeros((len(test_names), img_size, img_size)).astype('float32')
@@ -141,10 +141,14 @@ Configure train/test by drivers
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 drivers_index = np.unique(drivers.index.values)
 
+driver_train_percent = 0.5
+imgs_per_driver = 1
 np.random.seed(2016)
 cv_prob = np.random.sample(drivers_index.shape[0])
 train_cv_drivers = drivers_index[cv_prob < 0.5]
-train_images = drivers.loc[train_cv_drivers].values
+# for driver in
+train_images = drivers.loc[train_cv_drivers].img.values
+
 
 train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
 test_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
@@ -191,7 +195,6 @@ Y_train = np_utils.to_categorical(y_train, nb_classes)
 Y_test = np_utils.to_categorical(y_test, nb_classes)
 
 model = Sequential()
-
 model.add(Convolution2D(nb_filters, nb_conv, nb_conv,
                         border_mode='valid',
                         input_shape=(1, img_rows, img_cols)))
@@ -201,10 +204,10 @@ model.add(Activation('relu'))
 inner layers start
 """
 model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
-model.add(Activation('tanh'))
+model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
 model.add(Dropout(0.25))
-model.add(Activation('tanh'))
+model.add(Activation('relu'))
 """
 inner layers stop
 """
@@ -222,7 +225,7 @@ model.compile(loss='categorical_crossentropy', optimizer='adadelta')
 CV model
 """
 model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
-          show_accuracy=True, verbose=1, validation_data=(X_test, Y_test))
+          show_accuracy=True, verbose=1, validation_data=(X_test, Y_test), shuffle=True)
 # score = model.evaluate(X_test, Y_test, show_accuracy=True, verbose=0)
 # print('Test score:', score[0])
 # print('Test accuracy:', score[1])
@@ -242,7 +245,8 @@ train_files_gray = train_files_gray.reshape(train_files_gray.shape[0], 1, img_ro
 test_files_gray = test_files_gray.reshape(test_files_gray.shape[0], 1, img_rows, img_cols)
 
 # Fit the whole train data
-model.fit(train_files_gray, train_labels, batch_size=batch_size, nb_epoch=nb_epoch, show_accuracy=True, verbose=1)
+model.fit(train_files_gray, train_labels, batch_size=batch_size, nb_epoch=nb_epoch, show_accuracy=True, verbose=1,
+          shuffle=True)
 predicted_results = model.predict_proba(test_files_gray, batch_size=batch_size, verbose=1)
 print(predicted_results)
 print(predicted_results.shape)
