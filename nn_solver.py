@@ -154,11 +154,22 @@ for driver in train_cv_drivers:
     avail_states = np.unique(driver_imgs.classname.values)
     # For each state
     for state in avail_states:
+        # Get imgs_per_driver images
         driver_state_imgs = driver_imgs.iloc[np.array(driver_imgs.classname == state)].img.values
-        train_img_index = np.random.choice(driver_state_imgs.shape[0], imgs_per_driver, replace=False)
-        train_images += list(driver_state_imgs[train_img_index])
+        if imgs_per_driver < driver_state_imgs.shape[0]:
+            train_img_index = np.random.choice(driver_state_imgs.shape[0], imgs_per_driver, replace=False)
+            train_images += list(driver_state_imgs[train_img_index])
+        else:
+            train_images += list(driver_state_imgs)
 train_images = np.array(train_images)
-print(train_images)
+
+test_images = []
+test_cv_drivers = drivers_index[cv_prob >= 0.5]
+for driver in test_cv_drivers:
+    test_images += list(drivers.loc[driver].img.values)
+test_images = np.array(test_images)
+
+print(train_images, test_images)
 # train_images = drivers.loc[train_cv_drivers].img.values
 
 
@@ -168,7 +179,7 @@ for i, file_name in enumerate(train_names):
     img_name = file_name.split('/')[-1]
     if img_name in train_images:
         train_cv_ind[i] = True
-    else:
+    if img_name in test_images:
         test_cv_ind[i] = True
 
 np.random.seed(2016)
@@ -181,7 +192,7 @@ Compile Model
 
 np.random.seed(1337)  # for reproducibility
 
-batch_size = 128
+batch_size = 50
 nb_classes = 10
 nb_epoch = 10
 
@@ -225,7 +236,7 @@ inner layers stop
 """
 
 model.add(Flatten())
-model.add(Dense(128))
+model.add(Dense(64))
 model.add(Activation('relu'))
 model.add(Dropout(0.5))
 model.add(Dense(nb_classes))
