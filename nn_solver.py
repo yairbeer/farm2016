@@ -167,7 +167,7 @@ np.random.seed(1337)  # for reproducibility
 
 batch_size = 128
 nb_classes = 10
-nb_epoch = 2
+nb_epoch = 10
 
 # input image dimensions
 img_rows, img_cols = img_size, img_size
@@ -242,7 +242,7 @@ train_files_gray = train_files_gray.reshape(train_files_gray.shape[0], 1, img_ro
 test_files_gray = test_files_gray.reshape(test_files_gray.shape[0], 1, img_rows, img_cols)
 
 # Fit the whole train data
-# model.fit(train_files_gray, train_labels, batch_size=batch_size, nb_epoch=nb_epoch, show_accuracy=True, verbose=1)
+model.fit(train_files_gray, train_labels, batch_size=batch_size, nb_epoch=nb_epoch, show_accuracy=True, verbose=1)
 predicted_results = model.predict_proba(test_files_gray, batch_size=batch_size, verbose=1)
 print(predicted_results)
 print(predicted_results.shape)
