@@ -136,18 +136,30 @@ if debug:
     img_draw(train_files_gray, train_names, debug_n)
 
 """
-Configure train/test by drivers
+Configure train/test by drivers and images per state
 """
+driver_train_percent = 0.8
+imgs_per_driver = 10
+
+np.random.seed(2016)
+# Get driver - image relation table
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 drivers_index = np.unique(drivers.index.values)
-
-driver_train_percent = 0.5
-imgs_per_driver = 1
-np.random.seed(2016)
 cv_prob = np.random.sample(drivers_index.shape[0])
 train_cv_drivers = drivers_index[cv_prob < 0.5]
-# for driver in
-train_images = drivers.loc[train_cv_drivers].img.values
+train_images = []
+# For each driver
+for driver in train_cv_drivers:
+    driver_imgs = drivers.loc[train_cv_drivers]
+    avail_states = np.unique(driver_imgs.classname.values)
+    # For each state
+    for state in avail_states:
+        driver_state_imgs = driver_imgs.iloc[np.array(driver_imgs.classname == state)].img.values
+        train_img_index = np.random.choice(driver_state_imgs.shape[0], imgs_per_driver, replace=False)
+        train_images += list(driver_state_imgs[train_img_index])
+train_images = np.array(train_images)
+print(train_images)
+# train_images = drivers.loc[train_cv_drivers].img.values
 
 
 train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
