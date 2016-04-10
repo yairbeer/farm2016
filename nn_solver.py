@@ -140,11 +140,11 @@ Configure train/test by drivers and images per state
 """
 driver_train_percent = 0.75
 imgs_per_driver = 10
-n_monte_carlo = 2
+n_monte_carlo = 10
 
 batch_size = 50
 nb_classes = 10
-nb_epoch = 4
+nb_epoch = 10
 # input image dimensions
 img_rows, img_cols = img_size, img_size
 # number of convolutional filters to use
@@ -156,8 +156,13 @@ nb_conv = 3
 
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 test_files_gray = test_files_gray.reshape(test_files_gray.shape[0], 1, img_rows, img_cols).astype('float32')
+
 train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
 test_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
+
+# convert class vectors to binary class matrices
+train_labels_dummy = np_utils.to_categorical(train_labels, nb_classes)
+
 test_results = []
 for i_monte_carlo in range(n_monte_carlo):
     # Get driver - image relation table
@@ -196,8 +201,11 @@ for i_monte_carlo in range(n_monte_carlo):
         if img_name in test_images:
             test_cv_ind[i] = True
 
-    X_train, y_train = train_files_gray[train_cv_ind, :, :].astype('float32'), train_labels[train_cv_ind]
-    X_test, y_test = train_files_gray[test_cv_ind, :, :].astype('float32'), train_labels[test_cv_ind]
+    X_train, Y_train = train_files_gray[train_cv_ind, :, :].astype('float32'), train_labels_dummy[train_cv_ind, :]
+    X_test, Y_test = train_files_gray[test_cv_ind, :, :].astype('float32'), train_labels_dummy[test_cv_ind, :]
+
+    print(X_train, Y_train)
+    print(X_test, Y_test)
 
     """
     Compile Model
@@ -209,10 +217,6 @@ for i_monte_carlo in range(n_monte_carlo):
     print(X_train.shape[0], 'train samples')
     print(X_test.shape[0], 'test samples')
 
-    # convert class vectors to binary class matrices
-    Y_train = np_utils.to_categorical(y_train, nb_classes)
-    Y_test = np_utils.to_categorical(y_test, nb_classes)
-
     np.random.seed(100 * i_monte_carlo ** 3)  # for reproducibility
 
     """
@@ -220,13 +224,13 @@ for i_monte_carlo in range(n_monte_carlo):
     """
     model = Sequential()
     model.add(Convolution2D(nb_filters, nb_conv, nb_conv,
-                            border_mode='valid', input_shape=(1, img_rows, img_cols), init='glorot_uniform'))
+                            border_mode='valid', input_shape=(1, img_rows, img_cols)))
     model.add(Activation('relu'))
 
     """
     inner layers start
     """
-    model.add(Convolution2D(nb_filters, nb_conv, nb_conv, init='glorot_uniform'))
+    model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     model.add(Dropout(0.5))
@@ -236,13 +240,12 @@ for i_monte_carlo in range(n_monte_carlo):
     """
 
     model.add(Flatten())
-    model.add(Dense(50, init='glorot_uniform'))
+    model.add(Dense(50))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
     model.add(Dense(nb_classes))
     model.add(Activation('softmax'))
     model.compile(loss='categorical_crossentropy', optimizer='adadelta')
-    model = model.reset()
     model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
               show_accuracy=True, verbose=1, validation_data=(X_test, Y_test), shuffle=True)
     # score = model.evaluate(X_test, Y_test, show_accuracy=True, verbose=0)
