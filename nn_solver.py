@@ -136,12 +136,26 @@ if debug:
     img_draw(train_files_gray, train_names, debug_n)
 
 """
-Configure train/test
+Configure train/test by drivers
 """
+drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
+drivers_index = np.unique(drivers.index.values)
+
 np.random.seed(2016)
-cv_prob = np.random.sample(train_files.shape[0])
-train_cv_ind = cv_prob < 0.25
-test_cv_ind = cv_prob >= 0.25
+cv_prob = np.random.sample(drivers_index.shape[0])
+train_cv_drivers = drivers_index[cv_prob < 0.5]
+train_images = drivers.loc[train_cv_drivers].values
+
+train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
+test_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
+for i, file_name in enumerate(train_names):
+    img_name = file_name.split('/')[-1]
+    if img_name in train_images:
+        train_cv_ind[i] = True
+    else:
+        test_cv_ind[i] = True
+
+np.random.seed(2016)
 X_train, y_train = train_files_gray[train_cv_ind, :, :], train_labels[train_cv_ind]
 X_test, y_test = train_files_gray[test_cv_ind, :, :], train_labels[test_cv_ind]
 
@@ -153,7 +167,7 @@ np.random.seed(1337)  # for reproducibility
 
 batch_size = 128
 nb_classes = 10
-nb_epoch = 20
+nb_epoch = 2
 
 # input image dimensions
 img_rows, img_cols = img_size, img_size
@@ -228,7 +242,7 @@ train_files_gray = train_files_gray.reshape(train_files_gray.shape[0], 1, img_ro
 test_files_gray = test_files_gray.reshape(test_files_gray.shape[0], 1, img_rows, img_cols)
 
 # Fit the whole train data
-model.fit(train_files_gray, train_labels, batch_size=batch_size, nb_epoch=nb_epoch, show_accuracy=True, verbose=1)
+# model.fit(train_files_gray, train_labels, batch_size=batch_size, nb_epoch=nb_epoch, show_accuracy=True, verbose=1)
 predicted_results = model.predict_proba(test_files_gray, batch_size=batch_size, verbose=1)
 print(predicted_results)
 print(predicted_results.shape)
@@ -237,11 +251,12 @@ sub_file = pd.DataFrame.from_csv('sample_submission.csv')
 sub_file.iloc[:, :] = predicted_results
 sub_file = sub_file.fillna(0.1)
 
-# # Ordering sample index when needed
-# test_index = []
-# for file_name in test_names:
-#     test_index.append(file_name.split('.')[0].split('/')[-1])
-# sub_file.index = test_index
+# Ordering sample index when needed
+test_index = []
+for file_name in test_names:
+    test_index.append(file_name.split('/')[-1])
+sub_file.index = test_index
+sub_file.index.name = 'img'
 
 sub_file.to_csv(submit_name)
 
