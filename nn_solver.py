@@ -139,7 +139,7 @@ if debug:
 Configure train/test by drivers and images per state
 """
 driver_train_percent = 0.75
-imgs_per_driver = 10
+imgs_per_driver = 7
 n_monte_carlo = 3
 
 batch_size = 50
@@ -193,7 +193,6 @@ for i_monte_carlo in range(n_monte_carlo):
         test_images += list(drivers.loc[driver].img.values)
     test_images = np.array(test_images)
 
-    print(test_cv_drivers, train_cv_drivers)
     for i, file_name in enumerate(train_names):
         img_name = file_name.split('/')[-1]
         if img_name in train_images:
