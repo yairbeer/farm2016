@@ -140,11 +140,11 @@ Configure train/test by drivers and images per state
 """
 driver_train_percent = 0.75
 imgs_per_driver = 10
-n_monte_carlo = 10
+n_monte_carlo = 3
 
 batch_size = 50
 nb_classes = 10
-nb_epoch = 10
+nb_epoch = 20
 # input image dimensions
 img_rows, img_cols = img_size, img_size
 # number of convolutional filters to use
@@ -156,9 +156,6 @@ nb_conv = 3
 
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 test_files_gray = test_files_gray.reshape(test_files_gray.shape[0], 1, img_rows, img_cols).astype('float32')
-
-train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
-test_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
 
 # convert class vectors to binary class matrices
 train_labels_dummy = np_utils.to_categorical(train_labels, nb_classes)
@@ -172,6 +169,8 @@ for i_monte_carlo in range(n_monte_carlo):
     cv_prob = np.random.sample(drivers_index.shape[0])
     train_cv_drivers = drivers_index[cv_prob < driver_train_percent]
 
+    train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
+    test_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
     train_images = []
     # For each driver
     for driver in train_cv_drivers:
@@ -194,6 +193,7 @@ for i_monte_carlo in range(n_monte_carlo):
         test_images += list(drivers.loc[driver].img.values)
     test_images = np.array(test_images)
 
+    print(test_cv_drivers, train_cv_drivers)
     for i, file_name in enumerate(train_names):
         img_name = file_name.split('/')[-1]
         if img_name in train_images:
@@ -259,30 +259,6 @@ for i_monte_carlo in range(n_monte_carlo):
     """
     Solve and submit test
     """
-    train_labels = np_utils.to_categorical(train_labels, nb_classes)
-    train_images = []
-    # For each driver
-    for driver in drivers_index:
-        driver_imgs = drivers.loc[train_cv_drivers]
-        avail_states = np.unique(driver_imgs.classname.values)
-        # For each state
-        for state in avail_states:
-            # Get imgs_per_driver images
-            driver_state_imgs = driver_imgs.iloc[np.array(driver_imgs.classname == state)].img.values
-            if imgs_per_driver < driver_state_imgs.shape[0]:
-                train_img_index = np.random.choice(driver_state_imgs.shape[0], imgs_per_driver, replace=False)
-                train_images += list(driver_state_imgs[train_img_index])
-            else:
-                train_images += list(driver_state_imgs)
-    train_images = np.array(train_images)
-
-    train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
-    for i, file_name in enumerate(train_names):
-        img_name = file_name.split('/')[-1]
-        if img_name in train_images:
-            train_cv_ind[i] = True
-    del model
-
     predicted_results = model.predict_proba(test_files_gray, batch_size=batch_size, verbose=1)
     test_results.append(predicted_results)
 
