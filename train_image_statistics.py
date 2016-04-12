@@ -69,9 +69,10 @@ for fol in train_files_labeled:
     average_im = np.zeros((img_size_y, img_size_x, 3))
     for im_name in fol:
         image = imread(im_name)
+        image = image / 256
         image = rescale_intensity_each(image)
         average_im += image
-    average_im /= len(fol) * 256
+    average_im /= len(fol)
     average_im = rescale_intensity_each(average_im)
     avg_imgs.append(average_im)
 
@@ -82,10 +83,11 @@ for fol in train_files_labeled:
     average_im = np.zeros((img_size_y, img_size_x, 3))
     for im_name in fol:
         image = imread(im_name)
+        image = image / 256
         image = rescale_intensity_each(image)
         image = sobel_each(image)
         average_im += image
-    average_im /= len(fol) * 256
+    average_im /= len(fol)
     average_im = rescale_intensity_each(average_im)
     avg_imgs.append(average_im)
 
