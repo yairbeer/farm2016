@@ -41,19 +41,10 @@ def rescale_intensity_each(image):
     return np.clip(exposure.rescale_intensity(image, in_range=(plow, phigh)), 0, 1)
 
 """
-Vars
-"""
-submit_name = 'benchmark.csv'
-
-"""
 Import images
 """
 # Set path of data files
 path = "imgs"
-
-if not os.path.exists(path + "/trainResized"):
-    os.makedirs(path + "/trainResized")
-
 
 img_size_y = 48
 img_size_x = 64

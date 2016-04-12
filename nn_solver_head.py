@@ -52,18 +52,18 @@ def rescale_intensity_each(image):
 """
 Vars
 """
-submit_name = 'benchmark_monte_carlo.csv'
+submit_name = 'benchmark_monte_carlo_face.csv'
 debug = False
 debug_n = 64
 """
 Import images
 """
-img_size_y = 48
-img_size_x = 64
+img_size_y = 50
+img_size_x = 80
 
 # Train
 path = "imgs"
-train_folders = sorted(glob.glob(path + "/trainResized/*"))
+train_folders = sorted(glob.glob(path + "/trainResizedHead/*"))
 train_names = []
 for fol in train_folders:
     train_names += (glob.glob(fol + '/*'))
@@ -76,7 +76,7 @@ for i, name_file in enumerate(train_names):
     train_labels[i] = name_file.split('/')[-2]
 
 # Test
-test_names = sorted(glob.glob(path + "/testResized/*"))
+test_names = sorted(glob.glob(path + "/testResizedHead/*"))
 test_files = np.zeros((len(test_names), img_size_y, img_size_x, 3)).astype('float32')
 for i, name_file in enumerate(test_names):
     image = imp_img(name_file)
@@ -141,11 +141,11 @@ if debug:
 Configure train/test by drivers and images per state
 """
 driver_train_percent = 0.75
-imgs_per_driver = 25
-n_monte_carlo = 3
+imgs_per_driver = 30
+n_monte_carlo = 10
 
-batch_size = 128
 nb_classes = 10
+batch_size = 128
 nb_epoch = 20
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
@@ -247,6 +247,9 @@ for i_monte_carlo in range(n_monte_carlo):
     model.compile(loss='categorical_crossentropy', optimizer=sgd)
     model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
               show_accuracy=True, verbose=1, validation_data=(X_test, Y_test), shuffle=True)
+    # score = model.evaluate(X_test, Y_test, show_accuracy=True, verbose=0)
+    # print('Test score:', score[0])
+    # print('Test accuracy:', score[1])
 
     """
     Get accuracy
