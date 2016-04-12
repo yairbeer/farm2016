@@ -8,6 +8,7 @@ from skimage.color import gray2rgb, rgb2gray
 from skimage.color.adapt_rgb import adapt_rgb, each_channel
 from skimage import filters
 from skimage import exposure
+from skimage import feature
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
@@ -40,21 +41,26 @@ def imp_img(img_name):
 
 
 @adapt_rgb(each_channel)
+def corner_each(image):
+    return feature.corner_harris(image)
+
+
+@adapt_rgb(each_channel)
 def sobel_each(image):
     return filters.sobel(image)
 
 
 @adapt_rgb(each_channel)
-def rescale_intensity_each(image):
-    plow, phigh = np.percentile(image, (0, 100))
+def rescale_intensity_each(image, low, high):
+    plow, phigh = np.percentile(image, (low, high))
     return np.clip(exposure.rescale_intensity(image, in_range=(plow, phigh)), 0, 1)
 
 """
 Vars
 """
-submit_name = 'benchmark_monte_carlo.csv'
-debug = False
-debug_n = 64
+submit_name = 'benchmark_monte_carlo_corner.csv'
+debug = True
+debug_n = 100
 """
 Import images
 """
@@ -93,23 +99,36 @@ print(np.unique(train_labels))
 """
 Image processing
 """
-if debug:
-    img_draw(train_files, train_names, debug_n)
+# if debug:
+#     img_draw(train_files, train_names, debug_n)
 
 # Contrast streching
 for i, img_file in enumerate(train_files):
-    train_files[i, :, :, :] = rescale_intensity_each(img_file)
+    train_files[i, :, :, :] = rescale_intensity_each(img_file, 20, 80)
 for i, img_file in enumerate(test_files):
-    test_files[i, :, :, :] = rescale_intensity_each(img_file)
+    test_files[i, :, :, :] = rescale_intensity_each(img_file, 20, 80)
 
 if debug:
     img_draw(train_files, train_names, debug_n)
 
-# Find borders
+# # Find corners and borders
+# corner_w = 0.05
+# for i, img_file in enumerate(train_files):
+#     train_files[i, :, :, :] = corner_w * corner_each(img_file) + (1 - corner_w) * sobel_each(img_file)
+# for i, img_file in enumerate(test_files):
+#     test_files[i, :, :, :] = corner_w * corner_each(img_file) + (1 - corner_w) * sobel_each(img_file)
+
+# Find corners and borders
 for i, img_file in enumerate(train_files):
     train_files[i, :, :, :] = sobel_each(img_file)
 for i, img_file in enumerate(test_files):
     test_files[i, :, :, :] = sobel_each(img_file)
+
+# Contrast streching
+for i, img_file in enumerate(train_files):
+    train_files[i, :, :, :] = rescale_intensity_each(img_file, 20, 80)
+for i, img_file in enumerate(test_files):
+    test_files[i, :, :, :] = rescale_intensity_each(img_file, 20, 80)
 
 if debug:
     img_draw(train_files, train_names, debug_n)
@@ -140,17 +159,17 @@ if debug:
 """
 Configure train/test by drivers and images per state
 """
-driver_train_percent = 0.75
-imgs_per_driver = 25
+driver_train_percent = 0.5
+imgs_per_driver = 100
 n_monte_carlo = 3
 
-batch_size = 128
+batch_size = 256
 nb_classes = 10
 nb_epoch = 20
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # number of convolutional filters to use
-nb_filters = 32
+nb_filters = 64
 # size of pooling area for max pooling
 nb_pool = 2
 # convolution kernel size
@@ -238,7 +257,7 @@ for i_monte_carlo in range(n_monte_carlo):
     """
 
     model.add(Flatten())
-    model.add(Dense(50))
+    model.add(Dense(128))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
     model.add(Dense(nb_classes))
