@@ -7,22 +7,17 @@ from skimage.color import gray2rgb, rgb2gray
 from skimage.color.adapt_rgb import adapt_rgb, each_channel
 from skimage import filters
 from skimage import exposure
-from skimage.transform import resize
 import os
 
 
-def img_draw(im_arr, im_names, n_imgs):
+def img_draw(im_arr):
     plt.figure(1)
-    n_rows = int(np.sqrt(n_imgs))
-    n_cols = n_imgs / n_rows
-    for img_i in range(n_imgs):
+    n_rows = int(4)
+    n_cols = 3
+    for img_i in range(10):
         plt.subplot(n_cols, n_rows, img_i + 1)
-        plt.title(im_names[img_i].split('/')[-1].split('.')[0])
-        if len(im_arr.shape) == 4:
-            img = im_arr[img_i]
-        else:
-            img = im_arr[img_i]
-        plt.imshow(img)
+        plt.title('C' + str(img_i))
+        plt.imshow(im_arr[img_i])
     plt.show()
 
 
@@ -49,8 +44,7 @@ def rescale_intensity_each(image):
 Vars
 """
 submit_name = 'benchmark.csv'
-debug = False
-debug_n = 64
+
 """
 Import images
 """
@@ -61,7 +55,8 @@ if not os.path.exists(path + "/trainResized"):
     os.makedirs(path + "/trainResized")
 
 
-img_size = 40
+img_size_y = 48
+img_size_x = 64
 
 train_files_unlabeled = sorted(glob.glob(path + "/trainResized/*"))
 
@@ -69,10 +64,32 @@ train_files_labeled = []
 for fol in train_files_unlabeled:
     train_files_labeled.append(glob.glob(fol + '/*'))
 
-avg_classes = []
+avg_imgs = []
 for fol in train_files_labeled:
+    average_im = np.zeros((img_size_y, img_size_x, 3))
     for im_name in fol:
         image = imread(im_name)
+        image = rescale_intensity_each(image)
+        average_im += image
+    average_im /= len(fol) * 256
+    average_im = rescale_intensity_each(average_im)
+    avg_imgs.append(average_im)
+
+img_draw(avg_imgs)
+
+avg_imgs = []
+for fol in train_files_labeled:
+    average_im = np.zeros((img_size_y, img_size_x, 3))
+    for im_name in fol:
+        image = imread(im_name)
+        image = rescale_intensity_each(image)
+        image = sobel_each(image)
+        average_im += image
+    average_im /= len(fol) * 256
+    average_im = rescale_intensity_each(average_im)
+    avg_imgs.append(average_im)
+
+img_draw(avg_imgs)
 
 """
 Image processing
