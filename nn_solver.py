@@ -14,6 +14,7 @@ from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.utils import np_utils
 from keras.optimizers import SGD
+from sklearn.metrics import log_loss
 
 
 def img_draw(im_arr, im_names, n_imgs):
@@ -59,7 +60,7 @@ def rescale_intensity_each(image, low, high):
 Vars
 """
 submit_name = 'benchmark_monte_carlo_corner.csv'
-debug = True
+debug = False
 debug_n = 100
 """
 Import images
@@ -159,13 +160,13 @@ if debug:
 """
 Configure train/test by drivers and images per state
 """
-driver_train_percent = 0.5
-imgs_per_driver = 100
+driver_train_percent = 0.75
+imgs_per_driver = 10
 n_monte_carlo = 3
 
-batch_size = 256
+batch_size = 128
 nb_classes = 10
-nb_epoch = 20
+nb_epoch = 10
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # number of convolutional filters to use
@@ -174,7 +175,7 @@ nb_filters = 64
 nb_pool = 2
 # convolution kernel size
 nb_conv = 3
-
+clips_min = [1e-10, 1e-5, 1e-4, 1e-3, 1e-2, 0.05]
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 test_files_gray = test_files_gray.reshape(test_files_gray.shape[0], 1, img_rows, img_cols).astype('float32')
 
@@ -250,14 +251,14 @@ for i_monte_carlo in range(n_monte_carlo):
     model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-    model.add(Dropout(0.25))
+    model.add(Dropout(0.5))
     model.add(Activation('relu'))
     """
     inner layers stop
     """
 
     model.add(Flatten())
-    model.add(Dense(128))
+    model.add(Dense(64))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
     model.add(Dense(nb_classes))
@@ -273,6 +274,11 @@ for i_monte_carlo in range(n_monte_carlo):
     # predicted_results = model.predict_classes(X_test, batch_size=batch_size, verbose=1)
     # print(label_encoder.inverse_transform(predicted_results))
     # print(label_encoder.inverse_transform(y_test))
+    predicted_results = model.predict_proba(X_test, batch_size=batch_size, verbose=1)
+    print('Without clipping the logloss is %.3f' % log_loss(y_true=train_labels[test_cv_ind], y_pred=predicted_results))
+    for low_clip in clips_min:
+        print('With %f clipping the logloss is %.3f'
+              % (low_clip, log_loss(y_true=train_labels[test_cv_ind], y_pred=np.clip(predicted_results, low_clip, 1))))
 
     """
     Solve and submit test
