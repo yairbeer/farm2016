@@ -14,7 +14,6 @@ from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.utils import np_utils
 from keras.optimizers import SGD
-from sklearn.metrics import log_loss
 
 
 def img_draw(im_arr, im_names, n_imgs):
@@ -100,77 +99,30 @@ print(np.unique(train_labels))
 """
 Image processing
 """
-# if debug:
-#     img_draw(train_files, train_names, debug_n)
-
-# Contrast streching
-for i, img_file in enumerate(train_files):
-    train_files[i, :, :, :] = rescale_intensity_each(img_file, 10, 90)
-for i, img_file in enumerate(test_files):
-    test_files[i, :, :, :] = rescale_intensity_each(img_file, 10, 90)
-
 if debug:
     img_draw(train_files, train_names, debug_n)
-
-# Find corners and borders
-for i, img_file in enumerate(train_files):
-    train_files[i, :, :, :] = sobel_each(img_file)
-for i, img_file in enumerate(test_files):
-    test_files[i, :, :, :] = sobel_each(img_file)
-
-# Contrast streching
-for i, img_file in enumerate(train_files):
-    train_files[i, :, :, :] = rescale_intensity_each(img_file, 10, 90)
-for i, img_file in enumerate(test_files):
-    test_files[i, :, :, :] = rescale_intensity_each(img_file, 10, 90)
-
-if debug:
-    img_draw(train_files, train_names, debug_n)
-
-train_files_gray = np.zeros((len(train_names), img_size_y, img_size_x)).astype('float32')
-test_files_gray = np.zeros((len(test_names), img_size_y, img_size_x)).astype('float32')
-
-# Change to gray
-for i, img_file in enumerate(train_files):
-    train_files_gray[i, :, :] = rgb2gray(img_file)
-for i, img_file in enumerate(test_files):
-    test_files_gray[i, :, :] = rgb2gray(img_file)
-
-if debug:
-    img_draw(train_files_gray, train_names, debug_n)
-
-# Contrast streching
-for i, img_file in enumerate(train_files_gray):
-    p0, p100 = np.percentile(img_file, (0, 100))
-    train_files_gray[i, :, :] = exposure.rescale_intensity(img_file, in_range=(p0, p100))
-for i, img_file in enumerate(test_files_gray):
-    p0, p100 = np.percentile(img_file, (0, 100))
-    test_files_gray[i, :, :] = exposure.rescale_intensity(img_file, in_range=(p0, p100))
-
-if debug:
-    img_draw(train_files_gray, train_names, debug_n)
 
 """
 Configure train/test by drivers and images per state
 """
-driver_train_percent = 0.75
-imgs_per_driver = 10
+driver_train_percent = 0.5
+imgs_per_driver = 20
 n_monte_carlo = 3
 
-batch_size = 128
+batch_size = 256
 nb_classes = 10
-nb_epoch = 12
+nb_epoch = 20
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # number of convolutional filters to use
-nb_filters = 32
+nb_filters = 64
 # size of pooling area for max pooling
 nb_pool = 2
 # convolution kernel size
 nb_conv = 3
-clips_min = [1e-10, 1e-5, 1e-4, 1e-3, 1e-2, 0.05]
+
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
-test_files_gray = test_files_gray.reshape(test_files_gray.shape[0], 1, img_rows, img_cols).astype('float32')
+test_files = test_files.reshape(test_files.shape[0], 3, img_rows, img_cols).astype('float32')
 
 # convert class vectors to binary class matrices
 train_labels_dummy = np_utils.to_categorical(train_labels, nb_classes)
@@ -184,8 +136,8 @@ for i_monte_carlo in range(n_monte_carlo):
     cv_prob = np.random.sample(drivers_index.shape[0])
     train_cv_drivers = drivers_index[cv_prob < driver_train_percent]
 
-    train_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
-    test_cv_ind = np.zeros((train_files_gray.shape[0],)).astype(bool)
+    train_cv_ind = np.zeros((train_files.shape[0],)).astype(bool)
+    test_cv_ind = np.zeros((train_files.shape[0],)).astype(bool)
     train_images = []
     # For each driver
     for driver in train_cv_drivers:
@@ -215,15 +167,15 @@ for i_monte_carlo in range(n_monte_carlo):
         if img_name in test_images:
             test_cv_ind[i] = True
 
-    X_train, Y_train = train_files_gray[train_cv_ind, :, :].astype('float32'), train_labels_dummy[train_cv_ind, :]
-    X_test, Y_test = train_files_gray[test_cv_ind, :, :].astype('float32'), train_labels_dummy[test_cv_ind, :]
+    X_train, Y_train = train_files[train_cv_ind, :, :].astype('float32'), train_labels_dummy[train_cv_ind, :]
+    X_test, Y_test = train_files[test_cv_ind, :, :].astype('float32'), train_labels_dummy[test_cv_ind, :]
 
     """
     Compile Model
     """
     # the data, shuffled and split between train and test sets
-    X_train = X_train.reshape(X_train.shape[0], 1, img_rows, img_cols)
-    X_test = X_test.reshape(X_test.shape[0], 1, img_rows, img_cols)
+    X_train = X_train.reshape(X_train.shape[0], 3, img_rows, img_cols)
+    X_test = X_test.reshape(X_test.shape[0], 3, img_rows, img_cols)
 
     print(X_train.shape[0], 'train samples')
     print(X_test.shape[0], 'test samples')
@@ -235,7 +187,7 @@ for i_monte_carlo in range(n_monte_carlo):
     """
     model = Sequential()
     model.add(Convolution2D(nb_filters, nb_conv, nb_conv,
-                            border_mode='valid', input_shape=(1, img_rows, img_cols)))
+                            border_mode='valid', input_shape=(3, img_rows, img_cols)))
     model.add(Activation('relu'))
 
     """
@@ -244,14 +196,14 @@ for i_monte_carlo in range(n_monte_carlo):
     model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-    model.add(Dropout(0.5))
+    model.add(Dropout(0.25))
     model.add(Activation('relu'))
     """
     inner layers stop
     """
 
     model.add(Flatten())
-    model.add(Dense(64))
+    model.add(Dense(128))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
     model.add(Dense(nb_classes))
@@ -267,27 +219,23 @@ for i_monte_carlo in range(n_monte_carlo):
     # predicted_results = model.predict_classes(X_test, batch_size=batch_size, verbose=1)
     # print(label_encoder.inverse_transform(predicted_results))
     # print(label_encoder.inverse_transform(y_test))
-    predicted_results = model.predict_proba(X_test, batch_size=batch_size, verbose=1)
-    print('Without clipping the logloss is %.3f' % log_loss(y_true=train_labels[test_cv_ind], y_pred=predicted_results))
-    for low_clip in clips_min:
-        print('With %f clipping the logloss is %.3f'
-              % (low_clip, log_loss(y_true=train_labels[test_cv_ind], y_pred=np.clip(predicted_results, low_clip, 1))))
 
     """
     Solve and submit test
     """
-    predicted_results = model.predict_proba(test_files_gray, batch_size=batch_size, verbose=1)
+    predicted_results = model.predict_proba(test_files, batch_size=batch_size, verbose=1)
     test_results.append(predicted_results)
 
 sub_file = pd.DataFrame.from_csv('sample_submission.csv')
-sub_file.iloc[:, :] = predicted_results
-sub_file = sub_file.fillna(0.1)
 
 predicted_results = np.zeros(sub_file.shape)
 for mat in test_results:
     predicted_results += mat
 predicted_results /= len(test_results)
 print(predicted_results)
+
+sub_file.iloc[:, :] = predicted_results
+sub_file = sub_file.fillna(0.1)
 
 # Ordering sample index when needed
 test_index = []
