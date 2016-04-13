@@ -105,9 +105,9 @@ Image processing
 
 # Contrast streching
 for i, img_file in enumerate(train_files):
-    train_files[i, :, :, :] = rescale_intensity_each(img_file, 20, 80)
+    train_files[i, :, :, :] = rescale_intensity_each(img_file, 10, 90)
 for i, img_file in enumerate(test_files):
-    test_files[i, :, :, :] = rescale_intensity_each(img_file, 20, 80)
+    test_files[i, :, :, :] = rescale_intensity_each(img_file, 10, 90)
 
 if debug:
     img_draw(train_files, train_names, debug_n)
@@ -127,9 +127,9 @@ for i, img_file in enumerate(test_files):
 
 # Contrast streching
 for i, img_file in enumerate(train_files):
-    train_files[i, :, :, :] = rescale_intensity_each(img_file, 20, 80)
+    train_files[i, :, :, :] = rescale_intensity_each(img_file, 10, 90)
 for i, img_file in enumerate(test_files):
-    test_files[i, :, :, :] = rescale_intensity_each(img_file, 20, 80)
+    test_files[i, :, :, :] = rescale_intensity_each(img_file, 10, 90)
 
 if debug:
     img_draw(train_files, train_names, debug_n)
