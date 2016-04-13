@@ -58,18 +58,18 @@ def rescale_intensity_each(image, low, high):
 """
 Vars
 """
-submit_name = 'benchmark_monte_carlo_corner.csv'
+submit_name = 'benchmark_rgb.csv'
 debug = False
 debug_n = 100
 """
 Import images
 """
-img_size_y = 48
-img_size_x = 64
+img_size_y = 24
+img_size_x = 32
 
 # Train
 path = "imgs"
-train_folders = sorted(glob.glob(path + "/trainResized/*"))
+train_folders = sorted(glob.glob(path + "/trainResizedSmall/*"))
 train_names = []
 for fol in train_folders:
     train_names += (glob.glob(fol + '/*'))
@@ -82,7 +82,7 @@ for i, name_file in enumerate(train_names):
     train_labels[i] = name_file.split('/')[-2]
 
 # Test
-test_names = sorted(glob.glob(path + "/testResized/*"))
+test_names = sorted(glob.glob(path + "/testResizedSmall/*"))
 test_files = np.zeros((len(test_names), img_size_y, img_size_x, 3)).astype('float32')
 for i, name_file in enumerate(test_names):
     image = imp_img(name_file)
@@ -105,24 +105,35 @@ if debug:
 """
 Configure train/test by drivers and images per state
 """
-driver_train_percent = 0.5
-imgs_per_driver = 20
-n_monte_carlo = 3
+driver_train_percent = 0.75
+imgs_per_driver = 10
+n_monte_carlo = 5
 
-batch_size = 256
+batch_size = 128
 nb_classes = 10
-nb_epoch = 20
+nb_epoch = 10
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # number of convolutional filters to use
-nb_filters = 64
+nb_filters = 32
 # size of pooling area for max pooling
 nb_pool = 2
 # convolution kernel size
 nb_conv = 3
 
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
-test_files = test_files.reshape(test_files.shape[0], 3, img_rows, img_cols).astype('float32')
+train_files_cnn = np.zeros((train_files.shape[0], 3, img_rows, img_cols)).astype('float32')
+test_files_cnn = np.zeros((test_files.shape[0], 3, img_rows, img_cols)).astype('float32')
+
+for i in range(train_files_cnn.shape[0]):
+    train_files_cnn[i, 0, :, :] = train_files[i, :, :, 0]
+    train_files_cnn[i, 1, :, :] = train_files[i, :, :, 1]
+    train_files_cnn[i, 2, :, :] = train_files[i, :, :, 2]
+
+for i in range(test_files_cnn.shape[0]):
+    test_files_cnn[i, 0, :, :] = test_files[i, :, :, 0]
+    test_files_cnn[i, 1, :, :] = test_files[i, :, :, 1]
+    test_files_cnn[i, 2, :, :] = test_files[i, :, :, 2]
 
 # convert class vectors to binary class matrices
 train_labels_dummy = np_utils.to_categorical(train_labels, nb_classes)
@@ -167,8 +178,8 @@ for i_monte_carlo in range(n_monte_carlo):
         if img_name in test_images:
             test_cv_ind[i] = True
 
-    X_train, Y_train = train_files[train_cv_ind, :, :].astype('float32'), train_labels_dummy[train_cv_ind, :]
-    X_test, Y_test = train_files[test_cv_ind, :, :].astype('float32'), train_labels_dummy[test_cv_ind, :]
+    X_train, Y_train = train_files_cnn[train_cv_ind, :, :].astype('float32'), train_labels_dummy[train_cv_ind, :]
+    X_test, Y_test = train_files_cnn[test_cv_ind, :, :].astype('float32'), train_labels_dummy[test_cv_ind, :]
 
     """
     Compile Model
@@ -196,14 +207,14 @@ for i_monte_carlo in range(n_monte_carlo):
     model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-    model.add(Dropout(0.25))
+    model.add(Dropout(0.5))
     model.add(Activation('relu'))
     """
     inner layers stop
     """
 
     model.add(Flatten())
-    model.add(Dense(128))
+    model.add(Dense(64))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
     model.add(Dense(nb_classes))
@@ -223,7 +234,7 @@ for i_monte_carlo in range(n_monte_carlo):
     """
     Solve and submit test
     """
-    predicted_results = model.predict_proba(test_files, batch_size=batch_size, verbose=1)
+    predicted_results = model.predict_proba(test_files_cnn, batch_size=batch_size, verbose=1)
     test_results.append(predicted_results)
 
 sub_file = pd.DataFrame.from_csv('sample_submission.csv')
@@ -246,4 +257,4 @@ sub_file.index.name = 'img'
 
 sub_file.to_csv(submit_name)
 
-# each_rescale_intensity -> each_border -> rgb2gray -> rescale_intensity:
+# no image preprocessing:
