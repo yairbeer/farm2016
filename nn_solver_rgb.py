@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from skimage.io import imread
 from sklearn.preprocessing import LabelEncoder
-from skimage.color import gray2rgb, rgb2gray
+from skimage.color import gray2rgb
 from skimage.color.adapt_rgb import adapt_rgb, each_channel
 from skimage import filters
 from skimage import exposure
@@ -59,18 +59,18 @@ def rescale_intensity_each(image, low, high):
 """
 Vars
 """
-submit_name = 'benchmark_rgb.csv'
+submit_name = 'rgb_64x48.csv'
 debug = False
 debug_n = 100
 """
 Import images
 """
-img_size_y = 24
-img_size_x = 32
+img_size_y = 48
+img_size_x = 64
 
 # Train
 path = "imgs"
-train_folders = sorted(glob.glob(path + "/trainResizedSmall/*"))
+train_folders = sorted(glob.glob(path + "/trainResized/*"))
 train_names = []
 for fol in train_folders:
     train_names += (glob.glob(fol + '/*'))
@@ -83,7 +83,7 @@ for i, name_file in enumerate(train_names):
     train_labels[i] = name_file.split('/')[-2]
 
 # Test
-test_names = sorted(glob.glob(path + "/testResizedSmall/*"))
+test_names = sorted(glob.glob(path + "/testResized/*"))
 test_files = np.zeros((len(test_names), img_size_y, img_size_x, 3)).astype('float32')
 for i, name_file in enumerate(test_names):
     image = imp_img(name_file)
@@ -107,12 +107,12 @@ if debug:
 Configure train/test by drivers and images per state
 """
 driver_train_percent = 0.75
-imgs_per_driver = 10
+imgs_per_driver = 1000
 n_monte_carlo = 5
 
 batch_size = 128
 nb_classes = 10
-nb_epoch = 20
+nb_epoch = 50
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # number of convolutional filters to use
@@ -221,8 +221,7 @@ for i_monte_carlo in range(n_monte_carlo):
     model.add(Dropout(0.5))
     model.add(Dense(nb_classes))
     model.add(Activation('softmax'))
-    sgd = SGD(lr=0.03, decay=1e-6, momentum=0.9, nesterov=True)
-    model.compile(loss='categorical_crossentropy', optimizer=sgd)
+    sgd = SGD(lr=0.03, decay=1e-5, momentum=0.6, nesterov=True)
     model.compile(loss='categorical_crossentropy', optimizer=sgd)
 
     # this will do preprocessing and realtime data augmentation
@@ -232,9 +231,9 @@ for i_monte_carlo in range(n_monte_carlo):
         featurewise_std_normalization=False,  # divide inputs by std of the dataset
         samplewise_std_normalization=False,  # divide each input by its std
         zca_whitening=False,  # apply ZCA whitening
-        rotation_range=0,  # randomly rotate images in the range (degrees, 0 to 180)
-        width_shift_range=0.1,  # randomly shift images horizontally (fraction of total width)
-        height_shift_range=0.1,  # randomly shift images vertically (fraction of total height)
+        rotation_range=5,  # randomly rotate images in the range (degrees, 0 to 180)
+        width_shift_range=0.15,  # randomly shift images horizontally (fraction of total width)
+        height_shift_range=0.15,  # randomly shift images vertically (fraction of total height)
         horizontal_flip=False,  # randomly flip images
         vertical_flip=False)  # randomly flip images
 
