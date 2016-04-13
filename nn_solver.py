@@ -166,11 +166,11 @@ n_monte_carlo = 3
 
 batch_size = 128
 nb_classes = 10
-nb_epoch = 10
+nb_epoch = 12
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # number of convolutional filters to use
-nb_filters = 64
+nb_filters = 32
 # size of pooling area for max pooling
 nb_pool = 2
 # convolution kernel size
