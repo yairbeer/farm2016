@@ -24,10 +24,7 @@ def img_draw(im_arr, im_names, n_imgs):
     for img_i in range(n_imgs):
         plt.subplot(n_cols, n_rows, img_i + 1)
         plt.title(im_names[img_i].split('/')[-1].split('.')[0])
-        if len(im_arr.shape) == 4:
-            img = im_arr[img_i]
-        else:
-            img = im_arr[img_i]
+        img = im_arr[img_i]
         plt.imshow(img)
     plt.show()
 
@@ -116,7 +113,7 @@ def rescale_intensity_each(image, low, high):
 """
 Vars
 """
-submit_name = 'rgb_32x24.csv'
+submit_name = 'rgb_32x24_man.csv'
 debug = False
 debug_n = 100
 """
@@ -164,11 +161,11 @@ if debug:
 Configure train/test by drivers and images per state
 """
 n_fold = 2
-imgs_per_driver = 1000
+imgs_per_driver = 25
 
 batch_size = 128
 nb_classes = 10
-nb_epoch = 1
+nb_epoch = 30
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # number of convolutional filters to use
@@ -178,7 +175,7 @@ nb_pool = 2
 # convolution kernel size
 nb_conv = 3
 # lr update
-lr_updates = {0: 0.03, 40: 0.01, 80: 0.003}
+lr_updates = {0: 0.1}
 
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 train_files_cnn = np.zeros((train_files.shape[0], 3, img_rows, img_cols)).astype('float32')
@@ -245,16 +242,12 @@ for i_fold in range(n_fold):
             test_cv_ind[i] = True
 
     # Get the train / test split
-    X_train, Y_train = train_files_cnn[train_cv_ind, :, :].astype('float32'), train_labels_dummy[train_cv_ind, :]
-    X_test, Y_test = train_files_cnn[test_cv_ind, :, :].astype('float32'), train_labels_dummy[test_cv_ind, :]
+    X_train, Y_train = train_files_cnn[train_cv_ind].astype('float32'), train_labels_dummy[train_cv_ind, :]
+    X_test, Y_test = train_files_cnn[test_cv_ind].astype('float32'), train_labels_dummy[test_cv_ind, :]
 
     """
     Compile Model
     """
-    # the data, shuffled and split between train and test sets
-    X_train = X_train.reshape(X_train.shape[0], 3, img_rows, img_cols)
-    X_test = X_test.reshape(X_test.shape[0], 3, img_rows, img_cols)
-
     print(X_train.shape[0], 'train samples')
     print(X_test.shape[0], 'test samples')
 
@@ -275,7 +268,6 @@ for i_fold in range(n_fold):
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     model.add(Dropout(0.25))
-    model.add(Activation('relu'))
     """
     inner layers stop
     """
@@ -286,9 +278,8 @@ for i_fold in range(n_fold):
 
     model.add(Dense(nb_classes))
     model.add(Activation('softmax'))
-    sgd = SGD(lr=0.03, decay=1e-5, momentum=0.6, nesterov=True)
+    sgd = SGD(lr=0.03, decay=1e-5, momentum=0.9, nesterov=True)
     model.compile(loss='categorical_crossentropy', optimizer=sgd)
-    model.reset_states()
 
     for epoch_i in range(nb_epoch):
         X_train_cp = np.array(X_train, copy=True)
@@ -297,30 +288,37 @@ for i_fold in range(n_fold):
             print('lr changed to %f' % lr_updates[epoch_i])
             model.optimizer.lr.set_value(lr_updates[epoch_i])
         np.random.seed(epoch_i)
-        rotate_angle = np.random.normal(0, 3, X_train_cp.shape[0])
-        rescale_fac = np.random.normal(1, 0.05, X_train_cp.shape[0])
-        right_move = np.random.normal(0, 0.1, X_train_cp.shape[0])
-        up_move = np.random.normal(0, 0.1, X_train_cp.shape[0])
-        shear = np.random.normal(0, 3, X_train_cp.shape[0])
+        rotate_angle = np.random.normal(0, 0.001, X_train_cp.shape[0])
+        rescale_fac = np.random.normal(1, 0.001, X_train_cp.shape[0])
+        right_move = np.random.normal(0, 0.001, X_train_cp.shape[0])
+        up_move = np.random.normal(0, 0.001, X_train_cp.shape[0])
+        shear = np.random.normal(0, 0.001, X_train_cp.shape[0])
         shear = np.deg2rad(shear)
         for img_i in range(X_train_cp.shape[0]):
             afine_tf = tf.AffineTransform(shear=shear[img_i])
             for color in range(3):
-                X_train_cp[img_i, color] = tf.warp(X_train_cp[img_i, color], afine_tf)
-                X_train_cp[img_i, color] = img_rotate(X_train_cp[img_i, color], rotate_angle[img_i], -1)
-                X_train_cp[img_i, color] = img_rescale(X_train_cp[img_i, color], rescale_fac[img_i])
-                X_train_cp[img_i, color] = img_leftright(X_train_cp[img_i, color], right_move[img_i])
-                X_train_cp[img_i, color] = img_updown(X_train_cp[img_i, color], up_move[img_i])
-        # img_draw(X_train_cp[:, 0, :, :], label_encoder.inverse_transform(y_train), 100)
-        batch_order = np.random.choice(range(drivers_index.shape[0]), drivers_index.shape[0], replace=False)
-        X_train_cp = X_train_cp[batch_order]
+                X_train_cp[img_i, color, :, :] = tf.warp(X_train_cp[img_i, color, :, :], afine_tf)
+                X_train_cp[img_i, color, :, :] = img_rotate(X_train_cp[img_i, color, :, :], rotate_angle[img_i], -1)
+                X_train_cp[img_i, color, :, :] = img_rescale(X_train_cp[img_i, color, :, :], rescale_fac[img_i])
+                X_train_cp[img_i, color, :, :] = img_leftright(X_train_cp[img_i, color, :, :], right_move[img_i])
+                X_train_cp[img_i, color, :, :] = img_updown(X_train_cp[img_i, color, :, :], up_move[img_i])
+        batch_order = np.random.choice(range(X_train_cp.shape[0]), X_train_cp.shape[0], replace=False)
+        X_train_cp = X_train_cp[batch_order, :, :, :]
+        Y_train_cp = Y_train[batch_order, :]
         for batch_i in range(0, X_train_cp.shape[0], batch_size):
             if (batch_i + batch_size) < X_train_cp.shape[0]:
-                model.train_on_batch(X_train_cp[batch_i: batch_i + batch_size], Y_train[batch_i: batch_i + batch_size],
+                model.train_on_batch(X_train_cp[batch_i: batch_i + batch_size],
+                                     Y_train_cp[batch_i: batch_i + batch_size],
                                      accuracy=True)
             else:
-                model.train_on_batch(X_train_cp[batch_i:], Y_train[batch_i:], accuracy=True)
+                model.train_on_batch(X_train_cp[batch_i:], Y_train_cp[batch_i:], accuracy=True)
 
+        score = model.evaluate(X_train_cp, Y_train, verbose=0, show_accuracy=True)
+        print('Trasformed train score: %.2f, accuracy: %.3f' % (score[0], score[1]))
+        score = model.evaluate(X_train, Y_train, verbose=0, show_accuracy=True)
+        print('Train score: %.2f, Train accuracy: %.3f' % (score[0], score[1]))
+        score = model.evaluate(X_test, Y_test, verbose=0, show_accuracy=True)
+        print('Test score: %.2f, Test accuracy: %.3f' % (score[0], score[1]))
     """
     Get accuracy
     """
@@ -355,13 +353,15 @@ for epoch_i in range(nb_epoch):
             X_train_cp[img_i, color] = img_rescale(X_train_cp[img_i, color], rescale_fac[img_i])
             X_train_cp[img_i, color] = img_leftright(X_train_cp[img_i, color], right_move[img_i])
             X_train_cp[img_i, color] = img_updown(X_train_cp[img_i, color], up_move[img_i])
-    # img_draw(X_train_cp[:, 0, :, :], label_encoder.inverse_transform(y_train), 100)
+    batch_order = np.random.choice(range(X_train_cp.shape[0]), X_train_cp.shape[0], replace=False)
+    X_train_cp = X_train_cp[batch_order, :, :, :]
+    Y_train_cp = train_labels_dummy[batch_order, :]
     for batch_i in range(0, X_train_cp.shape[0], batch_size):
         if (batch_i + batch_size) < X_train_cp.shape[0]:
             model.train_on_batch(X_train_cp[batch_i: batch_i + batch_size],
-                                 train_labels_dummy[batch_i: batch_i + batch_size], accuracy=True)
+                                 Y_train_cp[batch_i: batch_i + batch_size], accuracy=True)
         else:
-            model.train_on_batch(X_train_cp[batch_i:], train_labels_dummy[batch_i:], accuracy=True)
+            model.train_on_batch(X_train_cp[batch_i:], Y_train_cp[batch_i:], accuracy=True)
 predicted_results = model.predict_proba(test_files_cnn, batch_size=batch_size, verbose=1)
 
 print('The Estimated Log loss is %f ' % np.mean(test_acc))
