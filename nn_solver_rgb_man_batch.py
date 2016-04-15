@@ -160,8 +160,8 @@ if debug:
 """
 Configure train/test by drivers and images per state
 """
-n_fold = 2
-imgs_per_driver = 25
+n_fold = 5
+imgs_per_driver = 1000
 
 batch_size = 128
 nb_classes = 10
@@ -175,7 +175,7 @@ nb_pool = 2
 # convolution kernel size
 nb_conv = 3
 # lr update
-lr_updates = {0: 0.1}
+lr_updates = {0: 0.03}
 
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 train_files_cnn = np.zeros((train_files.shape[0], 3, img_rows, img_cols)).astype('float32')
@@ -267,7 +267,7 @@ for i_fold in range(n_fold):
     model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-    model.add(Dropout(0.25))
+    model.add(Dropout(0.5))
     """
     inner layers stop
     """
@@ -288,11 +288,11 @@ for i_fold in range(n_fold):
             print('lr changed to %f' % lr_updates[epoch_i])
             model.optimizer.lr.set_value(lr_updates[epoch_i])
         np.random.seed(epoch_i)
-        rotate_angle = np.random.normal(0, 0.001, X_train_cp.shape[0])
-        rescale_fac = np.random.normal(1, 0.001, X_train_cp.shape[0])
-        right_move = np.random.normal(0, 0.001, X_train_cp.shape[0])
-        up_move = np.random.normal(0, 0.001, X_train_cp.shape[0])
-        shear = np.random.normal(0, 0.001, X_train_cp.shape[0])
+        rotate_angle = np.random.normal(0, 5, X_train_cp.shape[0])
+        rescale_fac = np.random.normal(1, 0.08, X_train_cp.shape[0])
+        right_move = np.random.normal(0, 0.1, X_train_cp.shape[0])
+        up_move = np.random.normal(0, 0.1, X_train_cp.shape[0])
+        shear = np.random.normal(0, 5, X_train_cp.shape[0])
         shear = np.deg2rad(shear)
         for img_i in range(X_train_cp.shape[0]):
             afine_tf = tf.AffineTransform(shear=shear[img_i])
@@ -312,9 +312,6 @@ for i_fold in range(n_fold):
                                      accuracy=True)
             else:
                 model.train_on_batch(X_train_cp[batch_i:], Y_train_cp[batch_i:], accuracy=True)
-
-        score = model.evaluate(X_train_cp, Y_train, verbose=0, show_accuracy=True)
-        print('Trasformed train score: %.2f, accuracy: %.3f' % (score[0], score[1]))
         score = model.evaluate(X_train, Y_train, verbose=0, show_accuracy=True)
         print('Train score: %.2f, Train accuracy: %.3f' % (score[0], score[1]))
         score = model.evaluate(X_test, Y_test, verbose=0, show_accuracy=True)
@@ -339,11 +336,11 @@ for epoch_i in range(nb_epoch):
         print('lr changed to %f' % lr_updates[epoch_i])
         model.optimizer.lr.set_value(lr_updates[epoch_i])
     np.random.seed(epoch_i)
-    rotate_angle = np.random.normal(0, 3, X_train_cp.shape[0])
-    rescale_fac = np.random.normal(1, 0.05, X_train_cp.shape[0])
+    rotate_angle = np.random.normal(0, 5, X_train_cp.shape[0])
+    rescale_fac = np.random.normal(1, 0.08, X_train_cp.shape[0])
     right_move = np.random.normal(0, 0.1, X_train_cp.shape[0])
     up_move = np.random.normal(0, 0.1, X_train_cp.shape[0])
-    shear = np.random.normal(0, 3, X_train_cp.shape[0])
+    shear = np.random.normal(0, 5, X_train_cp.shape[0])
     shear = np.deg2rad(shear)
     for img_i in range(X_train_cp.shape[0]):
         afine_tf = tf.AffineTransform(shear=shear[img_i])
