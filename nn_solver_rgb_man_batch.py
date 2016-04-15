@@ -160,12 +160,13 @@ if debug:
 """
 Configure train/test by drivers and images per state
 """
-n_fold = 5
+n_fold = 10
+percent_drivers = 0.5
 imgs_per_driver = 1000
 
 batch_size = 128
 nb_classes = 10
-nb_epoch = 30
+nb_epoch = 10
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # number of convolutional filters to use
@@ -203,8 +204,8 @@ for i_fold in range(n_fold):
     # Seed for repeatability
     np.random.seed(1000 * i_fold ** 2)
     train_test_driver_index = np.random.choice(range(drivers_index.shape[0]), drivers_index.shape[0], replace=False)
-    train_driver_index = train_test_driver_index[: int(drivers_index.shape[0] * (1 - 1 / n_fold))]
-    test_driver_index = train_test_driver_index[int(drivers_index.shape[0] * (1 - 1 / n_fold)):]
+    train_driver_index = train_test_driver_index[: int(drivers_index.shape[0] * percent_drivers)]
+    test_driver_index = train_test_driver_index[int(drivers_index.shape[0] * percent_drivers):]
     # On Average the number of drivers is cv_prob percent of the data
     train_cv_drivers = drivers_index[train_driver_index]
 
@@ -288,8 +289,8 @@ for i_fold in range(n_fold):
             print('lr changed to %f' % lr_updates[epoch_i])
             model.optimizer.lr.set_value(lr_updates[epoch_i])
         np.random.seed(epoch_i)
-        rotate_angle = np.random.normal(0, 5, X_train_cp.shape[0])
-        rescale_fac = np.random.normal(1, 0.08, X_train_cp.shape[0])
+        rotate_angle = np.random.normal(0, 3, X_train_cp.shape[0])
+        rescale_fac = np.random.normal(1, 0.05, X_train_cp.shape[0])
         right_move = np.random.normal(0, 0.1, X_train_cp.shape[0])
         up_move = np.random.normal(0, 0.1, X_train_cp.shape[0])
         shear = np.random.normal(0, 5, X_train_cp.shape[0])
@@ -322,47 +323,22 @@ for i_fold in range(n_fold):
     # predicted_results = model.predict_classes(X_test, batch_size=batch_size, verbose=1)
     # print(label_encoder.inverse_transform(predicted_results))
     # print(label_encoder.inverse_transform(y_test))
-
+    test_acc.append(score[0])
+    predicted_results = model.predict_proba(test_files_cnn, batch_size=batch_size, verbose=1)
+    test_results.append(predicted_results)
 """
 Solve and submit test
 """
-model.compile(loss='categorical_crossentropy', optimizer=sgd)
-model.reset_states()
-
-for epoch_i in range(nb_epoch):
-    X_train_cp = np.array(train_files_cnn, copy=True)
-    print('Epoch %d' % epoch_i)
-    if epoch_i in lr_updates:
-        print('lr changed to %f' % lr_updates[epoch_i])
-        model.optimizer.lr.set_value(lr_updates[epoch_i])
-    np.random.seed(epoch_i)
-    rotate_angle = np.random.normal(0, 5, X_train_cp.shape[0])
-    rescale_fac = np.random.normal(1, 0.08, X_train_cp.shape[0])
-    right_move = np.random.normal(0, 0.1, X_train_cp.shape[0])
-    up_move = np.random.normal(0, 0.1, X_train_cp.shape[0])
-    shear = np.random.normal(0, 5, X_train_cp.shape[0])
-    shear = np.deg2rad(shear)
-    for img_i in range(X_train_cp.shape[0]):
-        afine_tf = tf.AffineTransform(shear=shear[img_i])
-        for color in range(3):
-            X_train_cp[img_i, color] = tf.warp(X_train_cp[img_i, color], afine_tf)
-            X_train_cp[img_i, color] = img_rotate(X_train_cp[img_i, color], rotate_angle[img_i], -1)
-            X_train_cp[img_i, color] = img_rescale(X_train_cp[img_i, color], rescale_fac[img_i])
-            X_train_cp[img_i, color] = img_leftright(X_train_cp[img_i, color], right_move[img_i])
-            X_train_cp[img_i, color] = img_updown(X_train_cp[img_i, color], up_move[img_i])
-    batch_order = np.random.choice(range(X_train_cp.shape[0]), X_train_cp.shape[0], replace=False)
-    X_train_cp = X_train_cp[batch_order, :, :, :]
-    Y_train_cp = train_labels_dummy[batch_order, :]
-    for batch_i in range(0, X_train_cp.shape[0], batch_size):
-        if (batch_i + batch_size) < X_train_cp.shape[0]:
-            model.train_on_batch(X_train_cp[batch_i: batch_i + batch_size],
-                                 Y_train_cp[batch_i: batch_i + batch_size], accuracy=True)
-        else:
-            model.train_on_batch(X_train_cp[batch_i:], Y_train_cp[batch_i:], accuracy=True)
-predicted_results = model.predict_proba(test_files_cnn, batch_size=batch_size, verbose=1)
-
 print('The Estimated Log loss is %f ' % np.mean(test_acc))
+
 sub_file = pd.DataFrame.from_csv('sample_submission.csv')
+
+predicted_results = np.zeros(sub_file.shape)
+for mat in test_results:
+    predicted_results += mat
+predicted_results /= len(test_results)
+print(predicted_results)
+
 sub_file.iloc[:, :] = predicted_results
 sub_file = sub_file.fillna(0.1)
 
