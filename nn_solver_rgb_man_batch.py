@@ -9,12 +9,12 @@ from skimage.color.adapt_rgb import adapt_rgb, each_channel
 from skimage import filters
 from skimage import exposure
 from skimage import feature
+import skimage.transform as tf
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.utils import np_utils
 from keras.optimizers import SGD
-from keras.preprocessing.image import ImageDataGenerator
 
 
 def img_draw(im_arr, im_names, n_imgs):
@@ -30,6 +30,63 @@ def img_draw(im_arr, im_names, n_imgs):
             img = im_arr[img_i]
         plt.imshow(img)
     plt.show()
+
+
+def img_rescale(img, scale):
+    original_y, original_x = img.shape
+    if scale > 1:
+        img = tf.rescale(img, scale, clip=True)
+        scaled_y, scaled_x = img.shape
+        dx = (scaled_x - original_x) // 2
+        dy = (scaled_y - original_y) // 2
+        img = img[dy: (dy + original_y), dx: (dx + original_x)]
+        return img
+    else:
+        tmp_img = np.zeros(img.shape)
+        img = tf.rescale(img, scale)
+        scaled_y, scaled_x = img.shape
+        tmp_img[((original_y - scaled_y) // 2):((original_y - scaled_y) // 2 + scaled_y),
+                ((original_x - scaled_x) // 2):((original_x - scaled_x) // 2 + scaled_x)] = img
+        return tmp_img
+
+
+def img_updown(img, up):
+    h = img.shape[0]
+    up_pixels = int(h * up)
+    tmp_img = np.zeros(img.shape)
+    if up_pixels > 0:
+        tmp_img[up_pixels:, :] = img[: - up_pixels, :]
+    else:
+        if up_pixels < 0:
+            tmp_img[: up_pixels, :] = img[-up_pixels:, :]
+        else:
+            tmp_img = img
+    return tmp_img
+
+
+def img_leftright(img, right):
+    w = img.shape[1]
+    right_pixels = int(w * right)
+    tmp_img = np.zeros(img.shape)
+    if right_pixels > 0:
+        tmp_img[:, right_pixels:] = img[:, : (-1 * right_pixels)]
+    else:
+        if right_pixels < 0:
+            tmp_img[:, : right_pixels] = img[:, (-1 * right_pixels):]
+        else:
+            tmp_img = img
+    return tmp_img
+
+
+def img_rotate(img, rotate, corner_deg_chance):
+    rot_chance = np.random.random()
+    if rot_chance < corner_deg_chance:
+        return tf.rotate(img, 90)
+    if corner_deg_chance <= rot_chance < (corner_deg_chance * 2):
+        return tf.rotate(img, 180)
+    if (corner_deg_chance * 2) <= rot_chance < (corner_deg_chance * 3):
+        return tf.rotate(img, 270)
+    return tf.rotate(img, rotate)
 
 
 def imp_img(img_name):
@@ -106,13 +163,12 @@ if debug:
 """
 Configure train/test by drivers and images per state
 """
-driver_train_percent = 1.0
+n_fold = 2
 imgs_per_driver = 1000
-n_monte_carlo = 1
 
 batch_size = 128
 nb_classes = 10
-nb_epoch = 30
+nb_epoch = 1
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # number of convolutional filters to use
@@ -121,6 +177,8 @@ nb_filters = 32
 nb_pool = 2
 # convolution kernel size
 nb_conv = 3
+# lr update
+lr_updates = {0: 0.03, 40: 0.01, 80: 0.003}
 
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 train_files_cnn = np.zeros((train_files.shape[0], 3, img_rows, img_cols)).astype('float32')
@@ -141,15 +199,17 @@ train_labels_dummy = np_utils.to_categorical(train_labels, nb_classes)
 
 test_results = []
 test_acc = []
-for i_monte_carlo in range(n_monte_carlo):
+for i_fold in range(n_fold):
     # Get all the drivers
     drivers_index = np.unique(drivers.index.values)
 
     # Seed for repeatability
-    np.random.seed(1000 * i_monte_carlo ** 2)
-    cv_prob = np.random.sample(drivers_index.shape[0])
+    np.random.seed(1000 * i_fold ** 2)
+    train_test_driver_index = np.random.choice(range(drivers_index.shape[0]), drivers_index.shape[0], replace=False)
+    train_driver_index = train_test_driver_index[: int(drivers_index.shape[0] * (1 - 1 / n_fold))]
+    test_driver_index = train_test_driver_index[int(drivers_index.shape[0] * (1 - 1 / n_fold)):]
     # On Average the number of drivers is cv_prob percent of the data
-    train_cv_drivers = drivers_index[cv_prob < driver_train_percent]
+    train_cv_drivers = drivers_index[train_driver_index]
 
     train_cv_ind = np.zeros((train_files.shape[0],)).astype(bool)
     test_cv_ind = np.zeros((train_files.shape[0],)).astype(bool)
@@ -172,7 +232,7 @@ for i_monte_carlo in range(n_monte_carlo):
 
     test_images = []
     # Use all images of the test driver as test
-    test_cv_drivers = drivers_index[cv_prob >= driver_train_percent]
+    test_cv_drivers = drivers_index[test_driver_index]
     for driver in test_cv_drivers:
         test_images += list(drivers.loc[driver].img.values)
     test_images = np.array(test_images)
@@ -198,7 +258,7 @@ for i_monte_carlo in range(n_monte_carlo):
     print(X_train.shape[0], 'train samples')
     print(X_test.shape[0], 'test samples')
 
-    np.random.seed(100 * i_monte_carlo ** 3)  # for reproducibility
+    np.random.seed(100 * i_fold ** 3)  # for reproducibility
 
     """
     CV model
@@ -219,11 +279,7 @@ for i_monte_carlo in range(n_monte_carlo):
     """
     inner layers stop
     """
-
     model.add(Flatten())
-    model.add(Dense(64))
-    model.add(Activation('relu'))
-    model.add(Dropout(0.25))
     model.add(Dense(64))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
@@ -232,30 +288,39 @@ for i_monte_carlo in range(n_monte_carlo):
     model.add(Activation('softmax'))
     sgd = SGD(lr=0.03, decay=1e-5, momentum=0.6, nesterov=True)
     model.compile(loss='categorical_crossentropy', optimizer=sgd)
+    model.reset_states()
 
-    # this will do preprocessing and realtime data augmentation
-    datagen = ImageDataGenerator(
-        featurewise_center=False,  # set input mean to 0 over the dataset
-        samplewise_center=False,  # set each sample mean to 0
-        featurewise_std_normalization=False,  # divide inputs by std of the dataset
-        samplewise_std_normalization=False,  # divide each input by its std
-        zca_whitening=False,  # apply ZCA whitening
-        rotation_range=5,  # randomly rotate images in the range (degrees, 0 to 180)
-        width_shift_range=0.15,  # randomly shift images horizontally (fraction of total width)
-        height_shift_range=0.15,  # randomly shift images vertically (fraction of total height)
-        horizontal_flip=False,  # randomly flip images
-        vertical_flip=False)  # randomly flip images
+    for epoch_i in range(nb_epoch):
+        X_train_cp = np.array(X_train, copy=True)
+        print('Epoch %d' % epoch_i)
+        if epoch_i in lr_updates:
+            print('lr changed to %f' % lr_updates[epoch_i])
+            model.optimizer.lr.set_value(lr_updates[epoch_i])
+        np.random.seed(epoch_i)
+        rotate_angle = np.random.normal(0, 3, X_train_cp.shape[0])
+        rescale_fac = np.random.normal(1, 0.05, X_train_cp.shape[0])
+        right_move = np.random.normal(0, 0.1, X_train_cp.shape[0])
+        up_move = np.random.normal(0, 0.1, X_train_cp.shape[0])
+        shear = np.random.normal(0, 3, X_train_cp.shape[0])
+        shear = np.deg2rad(shear)
+        for img_i in range(X_train_cp.shape[0]):
+            afine_tf = tf.AffineTransform(shear=shear[img_i])
+            for color in range(3):
+                X_train_cp[img_i, color] = tf.warp(X_train_cp[img_i, color], afine_tf)
+                X_train_cp[img_i, color] = img_rotate(X_train_cp[img_i, color], rotate_angle[img_i], -1)
+                X_train_cp[img_i, color] = img_rescale(X_train_cp[img_i, color], rescale_fac[img_i])
+                X_train_cp[img_i, color] = img_leftright(X_train_cp[img_i, color], right_move[img_i])
+                X_train_cp[img_i, color] = img_updown(X_train_cp[img_i, color], up_move[img_i])
+        # img_draw(X_train_cp[:, 0, :, :], label_encoder.inverse_transform(y_train), 100)
+        batch_order = np.random.choice(range(drivers_index.shape[0]), drivers_index.shape[0], replace=False)
+        X_train_cp = X_train_cp[batch_order]
+        for batch_i in range(0, X_train_cp.shape[0], batch_size):
+            if (batch_i + batch_size) < X_train_cp.shape[0]:
+                model.train_on_batch(X_train_cp[batch_i: batch_i + batch_size], Y_train[batch_i: batch_i + batch_size],
+                                     accuracy=True)
+            else:
+                model.train_on_batch(X_train_cp[batch_i:], Y_train[batch_i:], accuracy=True)
 
-    # compute quantities required for featurewise normalization
-    # (std, mean, and principal components if ZCA whitening is applied)
-    datagen.fit(X_train)
-
-    # fit the model on the batches generated by datagen.flow()
-    model.fit_generator(datagen.flow(X_train, Y_train,
-                                     batch_size=batch_size, shuffle=True),
-                        samples_per_epoch=X_train.shape[0],
-                        nb_epoch=nb_epoch, show_accuracy=True, verbose=1,
-                        validation_data=(X_test, Y_test))
     """
     Get accuracy
     """
@@ -263,25 +328,44 @@ for i_monte_carlo in range(n_monte_carlo):
     # print(label_encoder.inverse_transform(predicted_results))
     # print(label_encoder.inverse_transform(y_test))
 
-    """
-    Solve and submit test
-    """
-    score = model.evaluate(X_test, Y_test, verbose=0, show_accuracy=True)
-    print('Test score:', score[0])
-    print('Test accuracy:', score[1])
-    test_acc.append(score[0])
-    predicted_results = model.predict_proba(test_files_cnn, batch_size=batch_size, verbose=1)
-    test_results.append(predicted_results)
+"""
+Solve and submit test
+"""
+model.compile(loss='categorical_crossentropy', optimizer=sgd)
+model.reset_states()
+
+for epoch_i in range(nb_epoch):
+    X_train_cp = np.array(train_files_cnn, copy=True)
+    print('Epoch %d' % epoch_i)
+    if epoch_i in lr_updates:
+        print('lr changed to %f' % lr_updates[epoch_i])
+        model.optimizer.lr.set_value(lr_updates[epoch_i])
+    np.random.seed(epoch_i)
+    rotate_angle = np.random.normal(0, 3, X_train_cp.shape[0])
+    rescale_fac = np.random.normal(1, 0.05, X_train_cp.shape[0])
+    right_move = np.random.normal(0, 0.1, X_train_cp.shape[0])
+    up_move = np.random.normal(0, 0.1, X_train_cp.shape[0])
+    shear = np.random.normal(0, 3, X_train_cp.shape[0])
+    shear = np.deg2rad(shear)
+    for img_i in range(X_train_cp.shape[0]):
+        afine_tf = tf.AffineTransform(shear=shear[img_i])
+        for color in range(3):
+            X_train_cp[img_i, color] = tf.warp(X_train_cp[img_i, color], afine_tf)
+            X_train_cp[img_i, color] = img_rotate(X_train_cp[img_i, color], rotate_angle[img_i], -1)
+            X_train_cp[img_i, color] = img_rescale(X_train_cp[img_i, color], rescale_fac[img_i])
+            X_train_cp[img_i, color] = img_leftright(X_train_cp[img_i, color], right_move[img_i])
+            X_train_cp[img_i, color] = img_updown(X_train_cp[img_i, color], up_move[img_i])
+    # img_draw(X_train_cp[:, 0, :, :], label_encoder.inverse_transform(y_train), 100)
+    for batch_i in range(0, X_train_cp.shape[0], batch_size):
+        if (batch_i + batch_size) < X_train_cp.shape[0]:
+            model.train_on_batch(X_train_cp[batch_i: batch_i + batch_size],
+                                 train_labels_dummy[batch_i: batch_i + batch_size], accuracy=True)
+        else:
+            model.train_on_batch(X_train_cp[batch_i:], train_labels_dummy[batch_i:], accuracy=True)
+predicted_results = model.predict_proba(test_files_cnn, batch_size=batch_size, verbose=1)
 
 print('The Estimated Log loss is %f ' % np.mean(test_acc))
 sub_file = pd.DataFrame.from_csv('sample_submission.csv')
-
-predicted_results = np.zeros(sub_file.shape)
-for mat in test_results:
-    predicted_results += mat
-predicted_results /= len(test_results)
-print(predicted_results)
-
 sub_file.iloc[:, :] = predicted_results
 sub_file = sub_file.fillna(0.1)
 
