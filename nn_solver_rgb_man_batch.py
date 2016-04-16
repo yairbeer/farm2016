@@ -2,8 +2,9 @@ import glob
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from skimage.io import imread
 from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import log_loss
+from skimage.io import imread
 from skimage.color import gray2rgb
 from skimage.color.adapt_rgb import adapt_rgb, each_channel
 from skimage import filters
@@ -192,11 +193,11 @@ n_montecarlo = 2
 n_fold = 4
 n_ensemble = 2
 percent_drivers = 0.75
-imgs_per_driver = 1000
+imgs_per_driver = 25
 
 batch_size = 128
 nb_classes = 10
-nb_epoch = 10
+nb_epoch = 2
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # number of convolutional filters to use
@@ -206,7 +207,7 @@ nb_pool = 2
 # convolution kernel size
 nb_conv = 3
 # lr update
-lr_updates = {0: 0.03}
+lr_updates = {0: 0.1, 10: 0.03}
 
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 train_files_cnn = np.zeros((train_files.shape[0], 3, img_rows, img_cols)).astype('float32')
@@ -228,6 +229,7 @@ train_labels_dummy = np_utils.to_categorical(train_labels, nb_classes)
 for i_mc in range(n_montecarlo):
     test_results = []
     test_acc = []
+    predicted_results = []
     for i_fold in range(n_fold):
         # Get all the drivers
         drivers_index = np.unique(drivers.index.values)
@@ -321,14 +323,13 @@ for i_mc in range(n_montecarlo):
                 np.random.seed(epoch_i)
                 X_train_cp.append(np.array(X_train[i_train], copy=True))
                 rotate_angle.append(np.random.normal(0, 3, X_train_cp[i_train].shape[0]))
-                rescale_fac.append(np.random.normal(1, 0.05, X_train_cp[i_train].shape[0]))
-                right_move.append(np.random.normal(0, 0.1, X_train_cp[i_train].shape[0]))
-                up_move.append(np.random.normal(0, 0.1, X_train_cp[i_train].shape[0]))
-                shear.append(np.random.normal(0, 5, X_train_cp[i_train].shape[0]))
+                rescale_fac.append(np.random.normal(1, 0.025, X_train_cp[i_train].shape[0]))
+                right_move.append(np.random.normal(0, 0.05, X_train_cp[i_train].shape[0]))
+                up_move.append(np.random.normal(0, 0.05, X_train_cp[i_train].shape[0]))
+                shear.append(np.random.normal(0, 3, X_train_cp[i_train].shape[0]))
                 shear[i_train] = np.deg2rad(shear[i_train])
             # For each training set copy training set
-            score_train = []
-            score_test = []
+            batch_predict_test = []
             for i_train in range(n_ensemble):
                 # Update learning rate if needed
                 if epoch_i in lr_updates:
@@ -363,24 +364,30 @@ for i_mc in range(n_montecarlo):
                         train_models[i_train].train_on_batch(X_train_cp[i_train][batch_i:],
                                                              Y_train_cp[batch_i:],
                                                              accuracy=True)
-                score_train.append(train_models[i_train].evaluate(X_train[i_train], Y_train[i_train], verbose=0,
-                                                                  show_accuracy=True))
-                score_test.append(train_models[i_train].evaluate(X_test, Y_test, verbose=0, show_accuracy=True))
-            score_train = np.array(score_train)
-            score_train = np.mean(score_train, axis=0)
-            score_test = np.array(score_test)
-            score_test = np.mean(score_test, axis=0)
-            print('Train score: %.2f, Train accuracy: %.3f' % (score_train[0], score_train[1]))
-            print('Test score: %.2f, Test accuracy: %.3f' % (score_test[0], score_test[1]))
+                score = train_models[i_train].evaluate(X_train[i_train], Y_train[i_train],
+                                                       verbose=0, show_accuracy=True)
+                print('For batch %d: train score: %.2f, train accuracy: %.3f' % (i_train, score[0], score[1]))
+                score = train_models[i_train].evaluate(X_test, Y_test, verbose=0, show_accuracy=True)
+                print('For batch %d: test score: %.2f, yest accuracy: %.3f' % (i_train, score[0], score[1]))
+                batch_predict_test.append(train_models[i_train].predict_proba(test_files_cnn,
+                                                                        batch_size=batch_size,
+                                                                        verbose=1))
+
+            batch_predicted_results = np.zeros(batch_predict_test[0].shape)
+            for mat in batch_predict_test:
+                batch_predicted_results += mat
+                batch_predicted_results /= n_ensemble
+            print(batch_predicted_results)
+            print('The average test score' % log_loss(train_labels[test_cv_ind], predicted_results))
         """
         Get accuracy
         """
         # predicted_results = model.predict_classes(X_test, batch_size=batch_size, verbose=1)
         # print(label_encoder.inverse_transform(predicted_results))
         # print(label_encoder.inverse_transform(y_test))
-        test_acc.append(score_test[0])
         for i_train in range(n_ensemble):
-            predicted_results = train_models[i_train].predict_proba(test_files_cnn, batch_size=batch_size, verbose=1)
+            predicted_results.append(train_models[i_train].predict_proba(test_files_cnn, batch_size=batch_size,
+                                                                         verbose=1))
         test_results.append(predicted_results)
 """
 Solve and submit test
