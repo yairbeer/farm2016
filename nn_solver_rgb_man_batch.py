@@ -141,7 +141,7 @@ def rescale_intensity_each(image, low, high):
 """
 Vars
 """
-submit_name = 'rgb_32x24_man.csv'
+submit_name = 'rgb_32x24_man_subsample.csv'
 debug = False
 debug_n = 100
 """
@@ -189,15 +189,15 @@ if debug:
 Configure train/test by drivers and images per state
 """
 
-n_montecarlo = 2
-n_fold = 4
-n_ensemble = 2
+n_montecarlo = 1
+n_fold = 5
+n_ensemble = 5
 percent_drivers = 0.75
-imgs_per_driver = 25
+imgs_per_driver = 1000
 
 batch_size = 128
 nb_classes = 10
-nb_epoch = 2
+nb_epoch = 20
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # number of convolutional filters to use
@@ -207,7 +207,7 @@ nb_pool = 2
 # convolution kernel size
 nb_conv = 3
 # lr update
-lr_updates = {0: 0.1, 10: 0.03}
+lr_updates = {0: 0.03}
 
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 train_files_cnn = np.zeros((train_files.shape[0], 3, img_rows, img_cols)).astype('float32')
@@ -229,7 +229,6 @@ train_labels_dummy = np_utils.to_categorical(train_labels, nb_classes)
 for i_mc in range(n_montecarlo):
     test_results = []
     test_acc = []
-    predicted_results = []
     for i_fold in range(n_fold):
         # Get all the drivers
         drivers_index = np.unique(drivers.index.values)
@@ -324,9 +323,9 @@ for i_mc in range(n_montecarlo):
                 X_train_cp.append(np.array(X_train[i_train], copy=True))
                 rotate_angle.append(np.random.normal(0, 3, X_train_cp[i_train].shape[0]))
                 rescale_fac.append(np.random.normal(1, 0.025, X_train_cp[i_train].shape[0]))
-                right_move.append(np.random.normal(0, 0.05, X_train_cp[i_train].shape[0]))
-                up_move.append(np.random.normal(0, 0.05, X_train_cp[i_train].shape[0]))
-                shear.append(np.random.normal(0, 3, X_train_cp[i_train].shape[0]))
+                right_move.append(np.random.normal(0, 0.08, X_train_cp[i_train].shape[0]))
+                up_move.append(np.random.normal(0, 0.08, X_train_cp[i_train].shape[0]))
+                shear.append(np.random.normal(0, 5, X_train_cp[i_train].shape[0]))
                 shear[i_train] = np.deg2rad(shear[i_train])
             # For each training set copy training set
             batch_predict_test = []
@@ -368,38 +367,39 @@ for i_mc in range(n_montecarlo):
                                                        verbose=0, show_accuracy=True)
                 print('For batch %d: train score: %.2f, train accuracy: %.3f' % (i_train, score[0], score[1]))
                 score = train_models[i_train].evaluate(X_test, Y_test, verbose=0, show_accuracy=True)
-                print('For batch %d: test score: %.2f, yest accuracy: %.3f' % (i_train, score[0], score[1]))
-                batch_predict_test.append(train_models[i_train].predict_proba(test_files_cnn,
-                                                                        batch_size=batch_size,
-                                                                        verbose=1))
+                print('For batch %d: test score: %.2f, test accuracy: %.3f' % (i_train, score[0], score[1]))
+                batch_predict_test.append(train_models[i_train].predict_proba(X_test,
+                                                                              batch_size=batch_size,
+                                                                              verbose=1))
 
             batch_predicted_results = np.zeros(batch_predict_test[0].shape)
             for mat in batch_predict_test:
                 batch_predicted_results += mat
                 batch_predicted_results /= n_ensemble
-            print(batch_predicted_results)
-            print('The average test score' % log_loss(train_labels[test_cv_ind], predicted_results))
+            print('The average test score %.3f' % log_loss(train_labels[test_cv_ind], batch_predicted_results))
+            test_predicted_results = []
+            for i_train in range(n_ensemble):
+                test_predicted_results.append(train_models[i_train].predict_proba(test_files_cnn,
+                                                                                  batch_size=batch_size,
+                                                                                  verbose=1))
         """
         Get accuracy
         """
         # predicted_results = model.predict_classes(X_test, batch_size=batch_size, verbose=1)
         # print(label_encoder.inverse_transform(predicted_results))
         # print(label_encoder.inverse_transform(y_test))
-        for i_train in range(n_ensemble):
-            predicted_results.append(train_models[i_train].predict_proba(test_files_cnn, batch_size=batch_size,
-                                                                         verbose=1))
-        test_results.append(predicted_results)
+
 """
 Solve and submit test
 """
-print('The Estimated Log loss is %f ' % np.mean(test_acc))
+# print('The Estimated Log loss is %f ' % np.mean(test_acc))
 
 sub_file = pd.DataFrame.from_csv('sample_submission.csv')
 
 predicted_results = np.zeros(sub_file.shape)
-for mat in test_results:
+for mat in test_predicted_results:
     predicted_results += mat
-predicted_results /= len(test_results)
+predicted_results /= len(test_predicted_results)
 print(predicted_results)
 
 sub_file.iloc[:, :] = predicted_results
