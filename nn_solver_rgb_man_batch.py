@@ -189,8 +189,8 @@ Configure train/test by drivers and images per state
 """
 
 n_montecarlo = 2
-n_fold = 2
-n_ensemble = 5
+n_fold = 4
+n_ensemble = 2
 percent_drivers = 0.75
 imgs_per_driver = 1000
 
@@ -237,12 +237,12 @@ for i_mc in range(n_montecarlo):
         train_test_driver_index = np.random.choice(range(drivers_index.shape[0]), drivers_index.shape[0], replace=False)
         train_driver_index = train_test_driver_index[: int(drivers_index.shape[0] * percent_drivers)]
         test_driver_index = train_test_driver_index[int(drivers_index.shape[0] * percent_drivers):]
+
         # On Average the number of drivers is cv_prob percent of the data
         train_cv_drivers = []
         for i_train in range(n_ensemble):
-            train_cv_drivers.append(np.random.choice(train_driver_index,
+            train_cv_drivers.append(np.random.choice(drivers_index[train_driver_index],
                                                      int(train_driver_index.shape[0] * percent_drivers), replace=False))
-
         train_cv_ind = np.zeros((train_files.shape[0], n_ensemble)).astype(bool)
         test_cv_ind = np.zeros((train_files.shape[0],)).astype(bool)
 
@@ -259,9 +259,9 @@ for i_mc in range(n_montecarlo):
                     driver_state_imgs = driver_imgs.iloc[np.array(driver_imgs.classname == state)].img.values
                     if imgs_per_driver < driver_state_imgs.shape[0]:
                         train_img_index = np.random.choice(driver_state_imgs.shape[0], imgs_per_driver, replace=False)
-                        train_images += list(driver_state_imgs[train_img_index])
+                        train_images[i_train] += list(driver_state_imgs[train_img_index])
                     else:
-                        train_images += list(driver_state_imgs)
+                        train_images[i_train] += list(driver_state_imgs)
             train_images[i_train] = np.array(train_images[i_train])
 
         test_images = []
@@ -285,14 +285,14 @@ for i_mc in range(n_montecarlo):
         X_train_n_imgs = []
         for i_train in range(n_ensemble):
             X_train.append(train_files_cnn[train_cv_ind[:, i_train]].astype('float32'))
-            X_train_n_imgs.append(np.sum(train_cv_ind[:, i_train]))
             Y_train.append(train_labels_dummy[train_cv_ind[:, i_train], :])
         X_test, Y_test = train_files_cnn[test_cv_ind].astype('float32'), train_labels_dummy[test_cv_ind, :]
 
         """
         Compile Model
         """
-        print(X_train.shape[0], 'train samples')
+        for i_train in range(n_ensemble):
+            print("Train set %d has %d samples" % (i_train, X_train[i_train].shape[0]))
         print(X_test.shape[0], 'test samples')
 
         np.random.seed(1000 * i_fold + 100 * i_mc + 10)  # for reproducibility
@@ -300,54 +300,85 @@ for i_mc in range(n_montecarlo):
         """
         CV model
         """
+        # Train cnn models
         train_models = []
         for i_train in range(n_ensemble):
             train_models.append(cnn_model())
 
+        # For each epoch
         for epoch_i in range(nb_epoch):
+            print('Epoch %d' % epoch_i)
+            # Get image preprocessing values
             X_train_cp = []
+            rotate_angle = []
+            rescale_fac = []
+            right_move = []
+            up_move = []
+            shear = []
+            afine_tf = []
+            # For each training set
             for i_train in range(n_ensemble):
+                np.random.seed(epoch_i)
                 X_train_cp.append(np.array(X_train[i_train], copy=True))
-                print('Epoch %d' % epoch_i)
+                rotate_angle.append(np.random.normal(0, 3, X_train_cp[i_train].shape[0]))
+                rescale_fac.append(np.random.normal(1, 0.05, X_train_cp[i_train].shape[0]))
+                right_move.append(np.random.normal(0, 0.1, X_train_cp[i_train].shape[0]))
+                up_move.append(np.random.normal(0, 0.1, X_train_cp[i_train].shape[0]))
+                shear.append(np.random.normal(0, 5, X_train_cp[i_train].shape[0]))
+                shear[i_train] = np.deg2rad(shear[i_train])
+            # For each training set copy training set
+            score_train = []
+            score_test = []
+            for i_train in range(n_ensemble):
+                # Update learning rate if needed
                 if epoch_i in lr_updates:
                     print('lr changed to %f' % lr_updates[epoch_i])
                     train_models[i_train].optimizer.lr.set_value(lr_updates[epoch_i])
-                np.random.seed(epoch_i)
-                rotate_angle = np.random.normal(0, 3, X_train_cp.shape[0])
-                rescale_fac = np.random.normal(1, 0.05, X_train_cp.shape[0])
-                right_move = np.random.normal(0, 0.1, X_train_cp.shape[0])
-                up_move = np.random.normal(0, 0.1, X_train_cp.shape[0])
-                shear = np.random.normal(0, 5, X_train_cp.shape[0])
-                shear = np.deg2rad(shear)
-                for img_i in range(X_train_cp.shape[0]):
-                    afine_tf = tf.AffineTransform(shear=shear[img_i])
+                # Preprocess images
+                for img_i in range(X_train_cp[i_train].shape[0]):
+                    afine_tf = tf.AffineTransform(shear=shear[i_train][img_i])
                     for color in range(3):
-                        X_train_cp[img_i, color, :, :] = tf.warp(X_train_cp[img_i, color, :, :], afine_tf)
-                        X_train_cp[img_i, color, :, :] = img_rotate(X_train_cp[img_i, color, :, :], rotate_angle[img_i], -1)
-                        X_train_cp[img_i, color, :, :] = img_rescale(X_train_cp[img_i, color, :, :], rescale_fac[img_i])
-                        X_train_cp[img_i, color, :, :] = img_leftright(X_train_cp[img_i, color, :, :], right_move[img_i])
-                        X_train_cp[img_i, color, :, :] = img_updown(X_train_cp[img_i, color, :, :], up_move[img_i])
-                batch_order = np.random.choice(range(X_train_cp.shape[0]), X_train_cp.shape[0], replace=False)
+                        X_train_cp[i_train][img_i, color, :, :] = tf.warp(X_train_cp[i_train][img_i, color, :, :],
+                                                                          afine_tf)
+                        X_train_cp[i_train][img_i, color, :, :] = img_rotate(X_train_cp[i_train][img_i, color, :, :],
+                                                                             rotate_angle[i_train][img_i], -1)
+                        X_train_cp[i_train][img_i, color, :, :] = img_rescale(X_train_cp[i_train][img_i, color, :, :],
+                                                                              rescale_fac[i_train][img_i])
+                        X_train_cp[i_train][img_i, color, :, :] = img_leftright(X_train_cp[i_train][img_i, color, :, :],
+                                                                                right_move[i_train][img_i])
+                        X_train_cp[i_train][img_i, color, :, :] = img_updown(X_train_cp[i_train][img_i, color, :, :],
+                                                                             up_move[i_train][img_i])
+                # Randomize batch order
+                batch_order = np.random.choice(range(X_train_cp[i_train].shape[0]), X_train_cp[i_train].shape[0],
+                                               replace=False)
                 X_train_cp[i_train] = X_train_cp[i_train][batch_order, :, :, :]
-                Y_train_cp = Y_train[batch_order, :]
-                for batch_i in range(0, X_train_cp.shape[0], batch_size):
-                    if (batch_i + batch_size) < X_train_cp.shape[0]:
-                        train_models[i_train].train_on_batch(X_train_cp[batch_i: batch_i + batch_size],
+                Y_train_cp = Y_train[i_train][batch_order, :]
+                # Solve epoch
+                for batch_i in range(0, X_train_cp[i_train].shape[0], batch_size):
+                    if (batch_i + batch_size) < X_train_cp[i_train].shape[0]:
+                        train_models[i_train].train_on_batch(X_train_cp[i_train][batch_i: batch_i + batch_size],
                                                              Y_train_cp[batch_i: batch_i + batch_size],
                                                              accuracy=True)
                     else:
-                        train_models[i_train].train_on_batch(X_train_cp[i_train][batch_i:], Y_train_cp[batch_i:], accuracy=True)
-                score = train_models[i_train].evaluate(X_train[i_train], Y_train[i_train], verbose=0, show_accuracy=True)
-                print('Train score: %.2f, Train accuracy: %.3f' % (score[0], score[1]))
-                score = train_models[i_train].evaluate(X_test, Y_test, verbose=0, show_accuracy=True)
-                print('Test score: %.2f, Test accuracy: %.3f' % (score[0], score[1]))
+                        train_models[i_train].train_on_batch(X_train_cp[i_train][batch_i:],
+                                                             Y_train_cp[batch_i:],
+                                                             accuracy=True)
+                score_train.append(train_models[i_train].evaluate(X_train[i_train], Y_train[i_train], verbose=0,
+                                                                  show_accuracy=True))
+                score_test.append(train_models[i_train].evaluate(X_test, Y_test, verbose=0, show_accuracy=True))
+            score_train = np.array(score_train)
+            score_train = np.mean(score_train, axis=0)
+            score_test = np.array(score_test)
+            score_test = np.mean(score_test, axis=0)
+            print('Train score: %.2f, Train accuracy: %.3f' % (score_train[0], score_train[1]))
+            print('Test score: %.2f, Test accuracy: %.3f' % (score_test[0], score_test[1]))
         """
         Get accuracy
         """
         # predicted_results = model.predict_classes(X_test, batch_size=batch_size, verbose=1)
         # print(label_encoder.inverse_transform(predicted_results))
         # print(label_encoder.inverse_transform(y_test))
-        test_acc.append(score[0])
+        test_acc.append(score_test[0])
         for i_train in range(n_ensemble):
             predicted_results = train_models[i_train].predict_proba(test_files_cnn, batch_size=batch_size, verbose=1)
         test_results.append(predicted_results)
