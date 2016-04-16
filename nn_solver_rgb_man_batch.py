@@ -107,13 +107,13 @@ def cnn_model():
     model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-    model.add(Dropout(0.25))
+    model.add(Dropout(0.5))
 
     """
     inner layers stop
     """
     model.add(Flatten())
-    model.add(Dense(128))
+    model.add(Dense(64))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
 
@@ -142,7 +142,7 @@ def rescale_intensity_each(image, low, high):
 """
 Vars
 """
-submit_name = 'rgb_48x32_man_subsample.csv'
+submit_name = 'rgb_32x24_man_subsample.csv'
 debug = False
 debug_n = 100
 """
@@ -177,8 +177,8 @@ test_files /= 255
 
 label_encoder = LabelEncoder()
 train_labels = label_encoder.fit_transform(train_labels)
-print(train_files.shape, test_files.shape)
-print(np.unique(train_labels))
+# print(train_files.shape, test_files.shape)
+# print(np.unique(train_labels))
 
 """
 Image processing
@@ -191,14 +191,14 @@ Configure train/test by drivers and images per state
 """
 
 n_montecarlo = 1
-n_fold = 5
-n_ensemble = 2
-percent_drivers = 0.5
-imgs_per_driver = 10
+n_fold = 4
+n_ensemble = 5
+percent_drivers = 0.6
+imgs_per_driver = 1000
 
-batch_size = 128
+batch_size = 256
 nb_classes = 10
-nb_epoch = 20
+nb_epoch = 12
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # number of convolutional filters to use
@@ -324,8 +324,8 @@ for i_mc in range(n_montecarlo):
                 X_train_cp.append(np.array(X_train[i_train], copy=True))
                 rotate_angle.append(np.random.normal(0, 3, X_train_cp[i_train].shape[0]))
                 rescale_fac.append(np.random.normal(1, 0.025, X_train_cp[i_train].shape[0]))
-                right_move.append(np.random.normal(0, 0.03, X_train_cp[i_train].shape[0]))
-                up_move.append(np.random.normal(0, 0.03, X_train_cp[i_train].shape[0]))
+                right_move.append(np.random.normal(0, 0.05, X_train_cp[i_train].shape[0]))
+                up_move.append(np.random.normal(0, 0.05, X_train_cp[i_train].shape[0]))
                 shear.append(np.random.normal(0, 3, X_train_cp[i_train].shape[0]))
                 shear[i_train] = np.deg2rad(shear[i_train])
             # For each training set copy training set
@@ -414,5 +414,5 @@ sub_file.index = test_index
 sub_file.index.name = 'img'
 
 sub_file.to_csv(submit_name)
-
-# no image preprocessing:
+#
+# # no image preprocessing:
