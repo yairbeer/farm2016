@@ -107,12 +107,13 @@ def cnn_model():
     model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-    model.add(Dropout(0.5))
+    model.add(Dropout(0.25))
+
     """
     inner layers stop
     """
     model.add(Flatten())
-    model.add(Dense(64))
+    model.add(Dense(128))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
 
@@ -141,18 +142,18 @@ def rescale_intensity_each(image, low, high):
 """
 Vars
 """
-submit_name = 'rgb_32x24_man_subsample.csv'
+submit_name = 'rgb_48x32_man_subsample.csv'
 debug = False
 debug_n = 100
 """
 Import images
 """
-img_size_y = 24
-img_size_x = 32
+img_size_y = 36
+img_size_x = 48
 
 # Train
 path = "imgs"
-train_folders = sorted(glob.glob(path + "/trainResizedSmall/*"))
+train_folders = sorted(glob.glob(path + "/trainResized48/*"))
 train_names = []
 for fol in train_folders:
     train_names += (glob.glob(fol + '/*'))
@@ -165,7 +166,7 @@ for i, name_file in enumerate(train_names):
     train_labels[i] = name_file.split('/')[-2]
 
 # Test
-test_names = sorted(glob.glob(path + "/testResizedSmall/*"))
+test_names = sorted(glob.glob(path + "/testResized48/*"))
 test_files = np.zeros((len(test_names), img_size_y, img_size_x, 3)).astype('float32')
 for i, name_file in enumerate(test_names):
     image = imp_img(name_file)
@@ -191,9 +192,9 @@ Configure train/test by drivers and images per state
 
 n_montecarlo = 1
 n_fold = 5
-n_ensemble = 5
-percent_drivers = 0.75
-imgs_per_driver = 1000
+n_ensemble = 2
+percent_drivers = 0.5
+imgs_per_driver = 10
 
 batch_size = 128
 nb_classes = 10
@@ -236,8 +237,8 @@ for i_mc in range(n_montecarlo):
         # Seed for repeatability
         np.random.seed(1000 * i_fold + 100 * i_mc)
         train_test_driver_index = np.random.choice(range(drivers_index.shape[0]), drivers_index.shape[0], replace=False)
-        train_driver_index = train_test_driver_index[: int(drivers_index.shape[0] * percent_drivers)]
-        test_driver_index = train_test_driver_index[int(drivers_index.shape[0] * percent_drivers):]
+        train_driver_index = train_test_driver_index[: int(drivers_index.shape[0] * (1 - 1/n_fold))]
+        test_driver_index = train_test_driver_index[int(drivers_index.shape[0] * (1 - 1/n_fold)):]
 
         # On Average the number of drivers is cv_prob percent of the data
         train_cv_drivers = []
@@ -323,9 +324,9 @@ for i_mc in range(n_montecarlo):
                 X_train_cp.append(np.array(X_train[i_train], copy=True))
                 rotate_angle.append(np.random.normal(0, 3, X_train_cp[i_train].shape[0]))
                 rescale_fac.append(np.random.normal(1, 0.025, X_train_cp[i_train].shape[0]))
-                right_move.append(np.random.normal(0, 0.08, X_train_cp[i_train].shape[0]))
-                up_move.append(np.random.normal(0, 0.08, X_train_cp[i_train].shape[0]))
-                shear.append(np.random.normal(0, 5, X_train_cp[i_train].shape[0]))
+                right_move.append(np.random.normal(0, 0.03, X_train_cp[i_train].shape[0]))
+                up_move.append(np.random.normal(0, 0.03, X_train_cp[i_train].shape[0]))
+                shear.append(np.random.normal(0, 3, X_train_cp[i_train].shape[0]))
                 shear[i_train] = np.deg2rad(shear[i_train])
             # For each training set copy training set
             batch_predict_test = []
