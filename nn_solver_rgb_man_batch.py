@@ -198,7 +198,7 @@ imgs_per_driver = 1000
 
 batch_size = 256
 nb_classes = 10
-nb_epoch = 12
+nb_epoch = 8
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # number of convolutional filters to use
@@ -329,7 +329,6 @@ for i_mc in range(n_montecarlo):
                 shear.append(np.random.normal(0, 3, X_train_cp[i_train].shape[0]))
                 shear[i_train] = np.deg2rad(shear[i_train])
             # For each training set copy training set
-            batch_predict_test = []
             for i_train in range(n_ensemble):
                 # Update learning rate if needed
                 if epoch_i in lr_updates:
@@ -369,20 +368,22 @@ for i_mc in range(n_montecarlo):
                 print('For batch %d: train score: %.2f, train accuracy: %.3f' % (i_train, score[0], score[1]))
                 score = train_models[i_train].evaluate(X_test, Y_test, verbose=0, show_accuracy=True)
                 print('For batch %d: test score: %.2f, test accuracy: %.3f' % (i_train, score[0], score[1]))
+            # Fit calculated model to the test data
+            batch_predict_test = []
+            for i_train in range(n_ensemble):
                 batch_predict_test.append(train_models[i_train].predict_proba(X_test,
                                                                               batch_size=batch_size,
                                                                               verbose=1))
-
             batch_predicted_results = np.zeros(batch_predict_test[0].shape)
             for mat in batch_predict_test:
                 batch_predicted_results += mat
                 batch_predicted_results /= n_ensemble
             print('The average test score %.3f' % log_loss(train_labels[test_cv_ind], batch_predicted_results))
-            test_predicted_results = []
-            for i_train in range(n_ensemble):
-                test_predicted_results.append(train_models[i_train].predict_proba(test_files_cnn,
-                                                                                  batch_size=batch_size,
-                                                                                  verbose=1))
+        test_predicted_results = []
+        for i_train in range(n_ensemble):
+            test_predicted_results.append(train_models[i_train].predict_proba(test_files_cnn,
+                                                                              batch_size=batch_size,
+                                                                              verbose=1))
         """
         Get accuracy
         """
