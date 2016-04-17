@@ -148,12 +148,12 @@ debug_n = 100
 """
 Import images
 """
-img_size_y = 36
-img_size_x = 48
+img_size_y = 24
+img_size_x = 32
 
 # Train
 path = "imgs"
-train_folders = sorted(glob.glob(path + "/trainResized48/*"))
+train_folders = sorted(glob.glob(path + "/trainResizedSmall/*"))
 train_names = []
 for fol in train_folders:
     train_names += (glob.glob(fol + '/*'))
@@ -166,7 +166,7 @@ for i, name_file in enumerate(train_names):
     train_labels[i] = name_file.split('/')[-2]
 
 # Test
-test_names = sorted(glob.glob(path + "/testResized48/*"))
+test_names = sorted(glob.glob(path + "/testResizedSmall/*"))
 test_files = np.zeros((len(test_names), img_size_y, img_size_x, 3)).astype('float32')
 for i, name_file in enumerate(test_names):
     image = imp_img(name_file)
@@ -192,13 +192,13 @@ Configure train/test by drivers and images per state
 
 n_montecarlo = 1
 n_fold = 4
-n_ensemble = 5
-percent_drivers = 0.6
+n_ensemble = 10
+percent_drivers = 0.75
 imgs_per_driver = 1000
 
 batch_size = 256
 nb_classes = 10
-nb_epoch = 8
+nb_epoch = 10
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # number of convolutional filters to use
@@ -323,7 +323,7 @@ for i_mc in range(n_montecarlo):
                 np.random.seed(epoch_i)
                 X_train_cp.append(np.array(X_train[i_train], copy=True))
                 rotate_angle.append(np.random.normal(0, 3, X_train_cp[i_train].shape[0]))
-                rescale_fac.append(np.random.normal(1, 0.025, X_train_cp[i_train].shape[0]))
+                rescale_fac.append(np.random.normal(1, 0.05, X_train_cp[i_train].shape[0]))
                 right_move.append(np.random.normal(0, 0.05, X_train_cp[i_train].shape[0]))
                 up_move.append(np.random.normal(0, 0.05, X_train_cp[i_train].shape[0]))
                 shear.append(np.random.normal(0, 3, X_train_cp[i_train].shape[0]))
