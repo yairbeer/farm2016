@@ -190,14 +190,14 @@ Configure train/test by drivers and images per state
 """
 
 n_montecarlo = 1
-n_fold = 2
-n_ensemble = 2
+n_fold = 5
+n_ensemble = 3
 percent_drivers = 0.75
-imgs_per_driver = 5
+imgs_per_driver = 10000
 
 batch_size = 256
 nb_classes = 10
-nb_epoch = 1
+nb_epoch = 20
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # number of convolutional filters to use
