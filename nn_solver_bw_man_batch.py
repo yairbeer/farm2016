@@ -106,13 +106,13 @@ def cnn_model():
     model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-    model.add(Dropout(0.5))
+    model.add(Dropout(0.25))
 
     """
     inner layers stop
     """
     model.add(Flatten())
-    model.add(Dense(64))
+    model.add(Dense(128))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
 
@@ -171,9 +171,6 @@ for i, name_file in enumerate(test_names):
     image = imp_img(name_file)
     test_files[i, :, :] = image
 
-train_files /= 255
-test_files /= 255
-
 label_encoder = LabelEncoder()
 train_labels = label_encoder.fit_transform(train_labels)
 # print(train_files.shape, test_files.shape)
@@ -191,9 +188,9 @@ Configure train/test by drivers and images per state
 
 n_montecarlo = 1
 n_fold = 5
-n_ensemble = 3
+n_ensemble = 1
 percent_drivers = 0.75
-imgs_per_driver = 10000
+imgs_per_driver = 1000
 
 batch_size = 256
 nb_classes = 10
@@ -212,6 +209,9 @@ lr_updates = {0: 0.03}
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 train_files_cnn = np.zeros((train_files.shape[0], 1, img_rows, img_cols)).astype('float32')
 test_files_cnn = np.zeros((test_files.shape[0], 1, img_rows, img_cols)).astype('float32')
+
+train_files_cnn[:, 0, :, :] = train_files
+test_files_cnn[:, 0, :, :] = test_files
 
 # convert class vectors to binary class matrices
 train_labels_dummy = np_utils.to_categorical(train_labels, nb_classes)
@@ -326,19 +326,19 @@ for i_mc in range(n_montecarlo):
                 # Preprocess images
                 for img_i in range(X_train_cp[i_train].shape[0]):
                     afine_tf = tf.AffineTransform(shear=shear[i_train][img_i])
-                    X_train_cp[i_train][img_i, 0] = tf.warp(X_train_cp[i_train][img_i, 0], afine_tf)
-                    X_train_cp[i_train][img_i, 0] = img_rotate(X_train_cp[i_train][img_i, 0],
+                    X_train_cp[i_train][img_i, 0, :, :] = tf.warp(X_train_cp[i_train][img_i, 0, :, :], afine_tf)
+                    X_train_cp[i_train][img_i, 0, :, :] = img_rotate(X_train_cp[i_train][img_i, 0, :, :],
                                                                rotate_angle[i_train][img_i], -1)
-                    X_train_cp[i_train][img_i, 0] = img_rescale(X_train_cp[i_train][img_i, 0],
+                    X_train_cp[i_train][img_i, 0, :, :] = img_rescale(X_train_cp[i_train][img_i, 0, :, :],
                                                                 rescale_fac[i_train][img_i])
-                    X_train_cp[i_train][img_i, 0] = img_leftright(X_train_cp[i_train][img_i, 0],
+                    X_train_cp[i_train][img_i, 0, :, :] = img_leftright(X_train_cp[i_train][img_i, 0, :, :],
                                                                   right_move[i_train][img_i])
-                    X_train_cp[i_train][img_i, 0] = img_updown(X_train_cp[i_train][img_i, 0],
+                    X_train_cp[i_train][img_i, 0, :, :] = img_updown(X_train_cp[i_train][img_i, 0, :, :],
                                                                up_move[i_train][img_i])
                 # Randomize batch order
                 batch_order = np.random.choice(range(X_train_cp[i_train].shape[0]), X_train_cp[i_train].shape[0],
                                                replace=False)
-                X_train_cp[i_train] = X_train_cp[i_train][batch_order]
+                X_train_cp[i_train] = X_train_cp[i_train][batch_order, :, :]
                 Y_train_cp = Y_train[i_train][batch_order, ]
                 # Solve epoch
                 for batch_i in range(0, X_train_cp[i_train].shape[0], batch_size):
