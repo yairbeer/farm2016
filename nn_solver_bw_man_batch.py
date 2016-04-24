@@ -141,18 +141,18 @@ def rescale_intensity_each(image, low, high):
 """
 Vars
 """
-submit_name = 'rgb_32x24_man_subsample.csv'
+submit_name = 'rgb_64x48_man_subsample.csv'
 debug = False
 debug_n = 100
 """
 Import images
 """
-img_size_y = 24
-img_size_x = 32
+img_size_y = 48
+img_size_x = 64
 
 # Train
 path = "imgs"
-train_folders = sorted(glob.glob(path + "/trainResizedSmall/*"))
+train_folders = sorted(glob.glob(path + "/trainResized/*"))
 train_names = []
 for fol in train_folders:
     train_names += (glob.glob(fol + '/*'))
@@ -165,7 +165,7 @@ for i, name_file in enumerate(train_names):
     train_labels[i] = name_file.split('/')[-2]
 
 # Test
-test_names = sorted(glob.glob(path + "/testResizedSmall/*"))
+test_names = sorted(glob.glob(path + "/testResized/*"))
 test_files = np.zeros((len(test_names), img_size_y, img_size_x)).astype('float32')
 for i, name_file in enumerate(test_names):
     image = imp_img(name_file)
@@ -190,7 +190,7 @@ n_montecarlo = 1
 n_fold = 5
 n_ensemble = 1
 percent_drivers = 0.75
-imgs_per_driver = 1000
+imgs_per_driver = 20
 
 batch_size = 256
 nb_classes = 10
