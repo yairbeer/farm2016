@@ -100,14 +100,19 @@ def cnn_model():
     model.add(Convolution2D(nb_filters, nb_conv, nb_conv,
                             border_mode='valid', input_shape=(1, img_rows, img_cols)))
     model.add(Activation('relu'))
+    model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
+    model.add(Dropout(0.25))
     """
     inner layers start
     """
     model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
     model.add(Activation('relu'))
+    model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
+    model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     model.add(Dropout(0.25))
-
     """
     inner layers stop
     """
@@ -189,10 +194,11 @@ Configure train/test by drivers and images per state
 n_montecarlo = 1
 n_fold = 5
 n_ensemble = 1
-percent_drivers = 0.75
-imgs_per_driver = 20
+percent_drivers = 1.0
+imgs_per_driver = 1000
 
-batch_size = 256
+
+batch_size = 32
 nb_classes = 10
 nb_epoch = 20
 # input image dimensions
@@ -204,7 +210,7 @@ nb_pool = 2
 # convolution kernel size
 nb_conv = 3
 # lr update
-lr_updates = {0: 0.03}
+lr_updates = {0: 0.01}
 
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 train_files_cnn = np.zeros((train_files.shape[0], 1, img_rows, img_cols)).astype('float32')
