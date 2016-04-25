@@ -360,10 +360,11 @@ for i_mc in range(n_montecarlo):
                                                              accuracy=True)
                 score = train_models[i_train].evaluate(X_train[i_train], Y_train[i_train],
                                                        verbose=0, show_accuracy=True)
-                if not(epoch_i % man_verbose):
-                    print('For batch %d: train score: %.2f, train accuracy: %.3f' % (i_train, score[0], score[1]))
-                    score = train_models[i_train].evaluate(X_test, Y_test, verbose=0, show_accuracy=True)
-                    print('For batch %d: test score: %.2f, test accuracy: %.3f' % (i_train, score[0], score[1]))
+                if man_verbose:
+                    if not(epoch_i % man_verbose):
+                        print('For batch %d: train score: %.2f, train accuracy: %.3f' % (i_train, score[0], score[1]))
+                        score = train_models[i_train].evaluate(X_test, Y_test, verbose=0, show_accuracy=True)
+                        print('For batch %d: test score: %.2f, test accuracy: %.3f' % (i_train, score[0], score[1]))
             # Fit calculated model to the test data
             batch_predict_test = []
             for i_train in range(n_ensemble):
