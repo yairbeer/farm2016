@@ -196,11 +196,11 @@ n_fold = 5
 n_ensemble = 1
 percent_drivers = 1.0
 imgs_per_driver = 1000
-
+percent_images = 0.5
 
 batch_size = 32
 nb_classes = 10
-nb_epoch = 20
+nb_epoch = 12
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # number of convolutional filters to use
@@ -210,7 +210,7 @@ nb_pool = 2
 # convolution kernel size
 nb_conv = 3
 # lr update
-lr_updates = {0: 0.01}
+lr_updates = {0: 0.01, 4: 0.003, 8: 0.001}
 
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 train_files_cnn = np.zeros((train_files.shape[0], 1, img_rows, img_cols)).astype('float32')
@@ -255,7 +255,8 @@ for i_mc in range(n_montecarlo):
                     # Get imgs_per_driver images (using all the images can overfit)
                     driver_state_imgs = driver_imgs.iloc[np.array(driver_imgs.classname == state)].img.values
                     if imgs_per_driver < driver_state_imgs.shape[0]:
-                        train_img_index = np.random.choice(driver_state_imgs.shape[0], imgs_per_driver, replace=False)
+                        train_img_index = np.random.choice(driver_state_imgs.shape[0],
+                                                           int(imgs_per_driver * percent_images), replace=False)
                         train_images[i_train] += list(driver_state_imgs[train_img_index])
                     else:
                         train_images[i_train] += list(driver_state_imgs)
