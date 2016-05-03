@@ -156,7 +156,7 @@ def cnn_model():
 Vars
 """
 # Output file name
-submit_name = 'rgb_64x48_man_subsample.csv'
+submit_name = 'rgb_64x48_man.csv'
 
 # To debug?
 debug = False
@@ -198,7 +198,7 @@ img_rows, img_cols = img_size_y, img_size_x
 # NN's batch size
 batch_size = 32
 # Number of NN epochs
-nb_epoch = 2
+nb_epoch = 3
 # Output classes
 nb_classes = 10
 
