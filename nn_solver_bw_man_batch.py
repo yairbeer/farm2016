@@ -198,7 +198,7 @@ img_rows, img_cols = img_size_y, img_size_x
 # NN's batch size
 batch_size = 32
 # Number of NN epochs
-nb_epoch = 1
+nb_epoch = 2
 # Output classes
 nb_classes = 10
 
@@ -208,7 +208,7 @@ nb_pool = 2
 # convolution kernel size
 nb_conv = 3
 # learning rate update, index is the epoch round
-lr_updates = {0: 0.003, 4: 0.001}
+lr_updates = {0: 0.003, 2: 0.001}
 
 """
 Start program
@@ -422,8 +422,8 @@ Solve and submit test
 """
 train_cv_drivers = []
 for i_train in range(n_ensemble):
-    train_cv_drivers.append(np.random.choice(drivers_index[train_driver_index],
-                                             int(train_driver_index.shape[0] * percent_drivers), replace=False))
+    train_cv_drivers.append(np.random.choice(drivers_index,
+                                             int(drivers_index.shape[0] * percent_drivers), replace=False))
 
 train_images = []
 # For each driver
@@ -434,7 +434,7 @@ for i_train in range(n_ensemble):
         avail_states = np.unique(driver_imgs.classname.values)
         # For each driving state
         for state in avail_states:
-            # Get imgs_per_driver images (using all the images can overfit)
+            # Get imgs_per_driver images less for quicker machine learning
             driver_state_imgs = driver_imgs.iloc[np.array(driver_imgs.classname == state)].img.values
             train_img_index = np.random.choice(driver_state_imgs.shape[0],
                                                int(driver_state_imgs.shape[0] * percent_images), replace=False)
@@ -467,7 +467,7 @@ for epoch_i in range(nb_epoch):
     # For each training set
     for i_train in range(n_ensemble):
         np.random.seed(epoch_i)
-        X_train_cp.append(np.array(X_train[i_train], copy=True))
+        X_train_cp.append(np.array(train_files_cnn[train_cv_ind[:, i_train], :, :, :], copy=True))
         rot.append(np.random.normal(0, rotate_angle, X_train_cp[i_train].shape[0]))
         rescale.append(np.random.normal(1, scale_factor, X_train_cp[i_train].shape[0]))
         right_move.append(np.random.normal(0, right_factor, X_train_cp[i_train].shape[0]))
@@ -496,7 +496,7 @@ for epoch_i in range(nb_epoch):
         batch_order = np.random.choice(range(X_train_cp[i_train].shape[0]), X_train_cp[i_train].shape[0],
                                        replace=False)
         X_train_cp[i_train] = X_train_cp[i_train][batch_order, :, :]
-        Y_train_cp = Y_train[i_train][batch_order, :]
+        Y_train_cp = train_labels_dummy[batch_order, :].copy()
         # Solve epoch
         for batch_i in range(0, X_train_cp[i_train].shape[0], batch_size):
             if (batch_i + batch_size) < X_train_cp[i_train].shape[0]:
@@ -507,8 +507,7 @@ for epoch_i in range(nb_epoch):
                 train_models[i_train].train_on_batch(X_train_cp[i_train][batch_i:],
                                                      Y_train_cp[batch_i:],
                                                      accuracy=True)
-        score = train_models[i_train].evaluate(X_train[i_train], Y_train[i_train],
-                                               verbose=0, show_accuracy=True)
+        score = train_models[i_train].evaluate(train_files_cnn, train_labels_dummy, verbose=0, show_accuracy=True)
         if man_verbose:
             if not (epoch_i % man_verbose):
                 print('For batch %d: train score: %.2f, train accuracy: %.3f' % (i_train, score[0], score[1]))
