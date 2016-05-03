@@ -136,27 +136,41 @@ def cnn_model():
 """
 Vars
 """
+# Output file name
 submit_name = 'rgb_64x48_man_subsample.csv'
+
+# To debug?
 debug = False
+# How many images to show?
 debug_n = 100
 
+# Input image size
 img_size_y = 48
 img_size_x = 64
 
+# Number of experiments
 n_montecarlo = 1
+# Number of folds per test
 n_fold = 4
+
+# Number of ensembles of drivers
 n_ensemble = 1
+# What percent of the drivers to use in each ensemble
 percent_drivers = 1.0
-imgs_per_driver = 1000
+# What percent of the drivers to use in each ensemble
 percent_images = 1.0
+# At what frequency to print prediction results
 man_verbose = 1
 
-# NN's batch size
-batch_size = 32
-nb_classes = 10
-nb_epoch = 18
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
+# NN's batch size
+batch_size = 32
+# Number of NN epochs
+nb_epoch = 18
+# Output classes
+nb_classes = 10
+
 
 # size of pooling area for max pooling
 nb_pool = 2
@@ -166,10 +180,10 @@ nb_conv = 3
 lr_updates = {0: 0.003, 6: 0.001, 12: 0.0001}
 
 """
-Import images
+Start program
 """
 
-
+# Read images
 # Train
 path = "imgs"
 train_folders = sorted(glob.glob(path + "/trainResized/*"))
@@ -248,12 +262,9 @@ for i_mc in range(n_montecarlo):
                 for state in avail_states:
                     # Get imgs_per_driver images (using all the images can overfit)
                     driver_state_imgs = driver_imgs.iloc[np.array(driver_imgs.classname == state)].img.values
-                    if imgs_per_driver < driver_state_imgs.shape[0]:
-                        train_img_index = np.random.choice(driver_state_imgs.shape[0],
-                                                           int(imgs_per_driver * percent_images), replace=False)
-                        train_images[i_train] += list(driver_state_imgs[train_img_index])
-                    else:
-                        train_images[i_train] += list(driver_state_imgs)
+                    train_img_index = np.random.choice(driver_state_imgs.shape[0],
+                                                       int(driver_state_imgs.shape[0] * percent_images), replace=False)
+                    train_images[i_train] += list(driver_state_imgs[train_img_index])
             train_images[i_train] = np.array(train_images[i_train])
 
         test_images = []
