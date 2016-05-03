@@ -6,10 +6,6 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import log_loss
 from skimage.io import imread
 from skimage.color import rgb2gray
-from skimage.color.adapt_rgb import adapt_rgb, each_channel
-from skimage import filters
-from skimage import exposure
-from skimage import feature
 import skimage.transform as tf
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation, Flatten
@@ -23,6 +19,13 @@ Functions
 
 
 def img_draw(im_arr, im_names, n_imgs):
+    """
+    Plot n_imgs images for debuging
+    :param im_arr: image array
+    :param im_names: image names list
+    :param n_imgs: number of images
+    :return: none
+    """
     plt.figure(1)
     n_rows = int(np.sqrt(n_imgs))
     n_cols = n_imgs / n_rows
@@ -35,6 +38,12 @@ def img_draw(im_arr, im_names, n_imgs):
 
 
 def img_rescale(img, scale):
+    """
+    rescale image
+    :param img: image
+    :param scale: scale factor
+    :return: rescaled image
+    """
     original_y, original_x = img.shape
     if scale > 1:
         img = tf.rescale(img, scale, clip=True)
@@ -53,6 +62,12 @@ def img_rescale(img, scale):
 
 
 def img_updown(img, up):
+    """
+    Translate image up or down
+    :param img: image
+    :param up: translate up factor
+    :return: translated image
+    """
     h = img.shape[0]
     up_pixels = int(h * up)
     tmp_img = np.zeros(img.shape)
@@ -67,6 +82,12 @@ def img_updown(img, up):
 
 
 def img_leftright(img, right):
+    """
+    Translate image left or right
+    :param img: image
+    :param right: translate right factor
+    :return: translated image
+    """
     w = img.shape[1]
     right_pixels = int(w * right)
     tmp_img = np.zeros(img.shape)
@@ -80,18 +101,12 @@ def img_leftright(img, right):
     return tmp_img
 
 
-def img_rotate(img, rotate, corner_deg_chance):
-    rot_chance = np.random.random()
-    if rot_chance < corner_deg_chance:
-        return tf.rotate(img, 90)
-    if corner_deg_chance <= rot_chance < (corner_deg_chance * 2):
-        return tf.rotate(img, 180)
-    if (corner_deg_chance * 2) <= rot_chance < (corner_deg_chance * 3):
-        return tf.rotate(img, 270)
-    return tf.rotate(img, rotate)
-
-
 def imp_img(img_name):
+    """
+    Read and preprocess images
+    :param img_name: image file name
+    :return: image array
+    """
     # read
     img = imread(img_name)
     # convert to gray
@@ -100,6 +115,10 @@ def imp_img(img_name):
 
 
 def cnn_model():
+    """
+    Create CNN model
+    :return: model
+    """
     model = Sequential()
     model.add(Convolution2D(32, nb_conv, nb_conv,
                             border_mode='valid', input_shape=(1, img_rows, img_cols)))
@@ -167,7 +186,7 @@ img_rows, img_cols = img_size_y, img_size_x
 # NN's batch size
 batch_size = 32
 # Number of NN epochs
-nb_epoch = 18
+nb_epoch = 5
 # Output classes
 nb_classes = 10
 
@@ -177,7 +196,7 @@ nb_pool = 2
 # convolution kernel size
 nb_conv = 3
 # learning rate update, index is the epoch round
-lr_updates = {0: 0.003, 6: 0.001, 12: 0.0001}
+lr_updates = {0: 0.003}
 
 """
 Start program
@@ -219,7 +238,7 @@ if debug:
 """
 Configure train/test by drivers and images per state
 """
-
+# Read relation table of drivers and
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 train_files_cnn = np.zeros((train_files.shape[0], 1, img_rows, img_cols)).astype('float32')
 test_files_cnn = np.zeros((test_files.shape[0], 1, img_rows, img_cols)).astype('float32')
@@ -339,14 +358,14 @@ for i_mc in range(n_montecarlo):
                 for img_i in range(X_train_cp[i_train].shape[0]):
                     afine_tf = tf.AffineTransform(shear=shear[i_train][img_i])
                     X_train_cp[i_train][img_i, 0, :, :] = tf.warp(X_train_cp[i_train][img_i, 0, :, :], afine_tf)
-                    X_train_cp[i_train][img_i, 0, :, :] = img_rotate(X_train_cp[i_train][img_i, 0, :, :],
-                                                               rotate_angle[i_train][img_i], -1)
+                    X_train_cp[i_train][img_i, 0, :, :] = tf.rotate(X_train_cp[i_train][img_i, 0, :, :],
+                                                                    rotate_angle[i_train][img_i])
                     X_train_cp[i_train][img_i, 0, :, :] = img_rescale(X_train_cp[i_train][img_i, 0, :, :],
-                                                                rescale_fac[i_train][img_i])
+                                                                      rescale_fac[i_train][img_i])
                     X_train_cp[i_train][img_i, 0, :, :] = img_leftright(X_train_cp[i_train][img_i, 0, :, :],
-                                                                  right_move[i_train][img_i])
+                                                                        right_move[i_train][img_i])
                     X_train_cp[i_train][img_i, 0, :, :] = img_updown(X_train_cp[i_train][img_i, 0, :, :],
-                                                               up_move[i_train][img_i])
+                                                                     up_move[i_train][img_i])
                 # Randomize batch order
                 batch_order = np.random.choice(range(X_train_cp[i_train].shape[0]), X_train_cp[i_train].shape[0],
                                                replace=False)
