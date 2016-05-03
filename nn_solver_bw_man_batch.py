@@ -131,9 +131,9 @@ def cnn_model():
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     model.add(Dropout(0.25))
 
-    model.add(Convolution2D(64, nb_conv, nb_conv))
+    model.add(Convolution2D(32, nb_conv, nb_conv))
     model.add(Activation('relu'))
-    model.add(Convolution2D(64, nb_conv, nb_conv))
+    model.add(Convolution2D(32, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     model.add(Dropout(0.25))
@@ -170,7 +170,7 @@ img_size_x = 64
 # Number of experiments
 n_montecarlo = 1
 # Number of folds per training set, 0 means no CV
-n_fold = 0
+n_fold = 5
 
 # Transmutations on train images
 # Shear on train
