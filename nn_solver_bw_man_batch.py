@@ -17,6 +17,10 @@ from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.utils import np_utils
 from keras.optimizers import SGD
 
+"""
+Functions
+"""
+
 
 def img_draw(im_arr, im_names, n_imgs):
     plt.figure(1)
@@ -97,29 +101,31 @@ def imp_img(img_name):
 
 def cnn_model():
     model = Sequential()
-    model.add(Convolution2D(nb_filters, nb_conv, nb_conv,
+    model.add(Convolution2D(32, nb_conv, nb_conv,
                             border_mode='valid', input_shape=(1, img_rows, img_cols)))
     model.add(Activation('relu'))
-    model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-    model.add(Dropout(0.25))
     """
     inner layers start
     """
-    model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
-    model.add(Activation('relu'))
-    model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
+    model.add(Convolution2D(32, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     model.add(Dropout(0.25))
-    """
-    inner layers stop
-    """
+
+    model.add(Convolution2D(64, nb_conv, nb_conv))
+    model.add(Activation('relu'))
+    model.add(Convolution2D(64, nb_conv, nb_conv))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
+    model.add(Dropout(0.25))
+
     model.add(Flatten())
     model.add(Dense(128))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
+    """
+    inner layers stop
+    """
 
     model.add(Dense(nb_classes))
     model.add(Activation('softmax'))
@@ -127,33 +133,42 @@ def cnn_model():
     model.compile(loss='categorical_crossentropy', optimizer=sgd)
     return model
 
-
-@adapt_rgb(each_channel)
-def corner_each(image):
-    return feature.corner_harris(image)
-
-
-@adapt_rgb(each_channel)
-def sobel_each(image):
-    return filters.sobel(image)
-
-
-@adapt_rgb(each_channel)
-def rescale_intensity_each(image, low, high):
-    plow, phigh = np.percentile(image, (low, high))
-    return np.clip(exposure.rescale_intensity(image, in_range=(plow, phigh)), 0, 1)
-
 """
 Vars
 """
 submit_name = 'rgb_64x48_man_subsample.csv'
 debug = False
 debug_n = 100
+
+img_size_y = 48
+img_size_x = 64
+
+n_montecarlo = 1
+n_fold = 4
+n_ensemble = 1
+percent_drivers = 1.0
+imgs_per_driver = 1000
+percent_images = 1.0
+man_verbose = 1
+
+# NN's batch size
+batch_size = 32
+nb_classes = 10
+nb_epoch = 18
+# input image dimensions
+img_rows, img_cols = img_size_y, img_size_x
+
+# size of pooling area for max pooling
+nb_pool = 2
+# convolution kernel size
+nb_conv = 3
+# learning rate update, index is the epoch round
+lr_updates = {0: 0.003, 6: 0.001, 12: 0.0001}
+
 """
 Import images
 """
-img_size_y = 48
-img_size_x = 64
+
 
 # Train
 path = "imgs"
@@ -190,28 +205,6 @@ if debug:
 """
 Configure train/test by drivers and images per state
 """
-
-n_montecarlo = 1
-n_fold = 4
-n_ensemble = 1
-percent_drivers = 1.0
-imgs_per_driver = 1000
-percent_images = 1.0
-man_verbose = 1
-
-batch_size = 32
-nb_classes = 10
-nb_epoch = 18
-# input image dimensions
-img_rows, img_cols = img_size_y, img_size_x
-# number of convolutional filters to use
-nb_filters = 32
-# size of pooling area for max pooling
-nb_pool = 2
-# convolution kernel size
-nb_conv = 3
-# lr update
-lr_updates = {0: 0.003, 6: 0.001, 12: 0.0001}
 
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 train_files_cnn = np.zeros((train_files.shape[0], 1, img_rows, img_cols)).astype('float32')
@@ -412,5 +405,3 @@ sub_file.index = test_index
 sub_file.index.name = 'img'
 
 sub_file.to_csv(submit_name)
-#
-# # no image preprocessing:
