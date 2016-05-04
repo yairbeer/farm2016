@@ -119,6 +119,24 @@ def imp_batch(img_names):
     return img_reshaped
 
 
+def eval_batch(X_batch, y_batch, n_samples):
+    """
+    evaluate on
+    :param X_batch:
+    :param y_batch:
+    :return:
+    """
+    for i, img in enumerate(img_names):
+        # read
+        img = imread(img)
+        # convert to gray
+        img = rgb2gray(img)
+        img_arr[i] = img
+    img_reshaped = np.zeros((img_names.shape[0], 1, img_rows, img_cols)).astype('float32')
+    img_reshaped[:, 0, :, :] = img_arr
+    return img_reshaped
+
+
 def cnn_model():
     """
     Create CNN model
@@ -135,13 +153,6 @@ def cnn_model():
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     model.add(Dropout(0.25))
-
-    model.add(Convolution2D(32, nb_conv, nb_conv))
-    model.add(Activation('relu'))
-    model.add(Convolution2D(32, nb_conv, nb_conv))
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-    model.add(Dropout(0.5))
 
     model.add(Convolution2D(32, nb_conv, nb_conv))
     model.add(Activation('relu'))
@@ -211,7 +222,7 @@ nb_pool = 2
 # convolution kernel size
 nb_conv = 3
 # learning rate update, index is the batch round
-lr_updates = {0: 0.03, 1001: 0.01}
+lr_updates = {0: 0.003, 1001: 0.001}
 
 """
 Start program
@@ -353,7 +364,7 @@ if n_fold:
                                                         accuracy=True)
                             score = train_models.evaluate(batch_train, Y_train_cp[batch_i: batch_i + batch_size],
                                                           verbose=0, show_accuracy=True)
-                            print('For batch %d: train score: %.2f, train accuracy: %.3f' % (i_train, score[0],
+                            print('For batch %d: train score: %.2f, train accuracy: %.3f' % (batch_count, score[0],
                                                                                              score[1]))
                         else:
                             batch_names = X_train_cp[batch_i:]
@@ -361,7 +372,7 @@ if n_fold:
                             train_models.train_on_batch(batch_train, Y_train_cp[batch_i:], accuracy=True)
                             score = train_models.evaluate(batch_train, Y_train_cp[batch_i:],
                                                           verbose=0, show_accuracy=True)
-                            print('For batch %d: train score: %.2f, train accuracy: %.3f' % (i_train, score[0],
+                            print('For batch %d: train score: %.2f, train accuracy: %.3f' % (batch_count, score[0],
                                                                                              score[1]))
                         batch_count += 1
                         # Stop training current batch if gotten to nb_batches
