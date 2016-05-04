@@ -175,15 +175,12 @@ img_size_x = 32
 # Number of experiments
 n_montecarlo = 1
 # Number of folds per training set, 0 means no CV
-n_fold = 0
+n_fold = 2
 
 # Number of ensembles of drivers
 n_ensemble = 1
 # What percent of the drivers to use in each ensemble
 percent_drivers = 1.0
-# What percent of the drivers to use in each ensemble
-percent_images = 1.0
-
 
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
@@ -198,7 +195,6 @@ nb_epoch = 100
 # Output classes
 nb_classes = 10
 
-
 # size of pooling area for max pooling
 nb_pool = 2
 # convolution kernel size
@@ -206,6 +202,8 @@ nb_conv = 3
 # learning rate update, index is the batch round
 lr_updates = {0: 0.03, 1001: 0.01}
 
+train_sub = "/trainResizedSmall/"
+test_sub = "/testResizedSmall/"
 """
 Start program
 """
@@ -213,27 +211,22 @@ Start program
 # Read images
 # Train
 path = "imgs"
-train_folders = sorted(glob.glob(path + "/trainResizedSmall/*"))
+train_folders = sorted(glob.glob(path + train_sub + "*"))
 train_names = []
 for fol in train_folders:
     train_names += (glob.glob(fol + '/*'))
+train_names = np.array(train_names)
 
-train_files = np.zeros((len(train_names), img_size_y, img_size_x)).astype('float32')
 train_labels = np.zeros((len(train_names),)).astype(str)
 for i, name_file in enumerate(train_names):
     train_labels[i] = name_file.split('/')[-2]
 
 # Test
-test_names = sorted(glob.glob(path + "/testResizedSmall/*"))
+test_names = sorted(glob.glob(path + test_sub + "*"))
+test_names = np.array(test_names)
 
 label_encoder = LabelEncoder()
 train_labels = label_encoder.fit_transform(train_labels)
-
-"""
-Image processing
-"""
-if debug:
-    img_draw(train_files, train_names, debug_n)
 
 """
 Configure train/test by drivers and images per state
@@ -252,6 +245,7 @@ if n_fold:
         test_acc = []
         for i_fold in range(n_fold):
             print('Fold %d' % i_fold)
+
             # Seed for repeatability
             np.random.seed(1000 * i_fold + 100 * i_mc)
             train_test_driver_index = np.random.choice(range(drivers_index.shape[0]), drivers_index.shape[0],
@@ -265,8 +259,8 @@ if n_fold:
                 train_cv_drivers.append(np.random.choice(drivers_index[train_driver_index],
                                                          int(train_driver_index.shape[0] * percent_drivers),
                                                          replace=False))
-            train_cv_ind = np.zeros((train_files.shape[0], n_ensemble)).astype(bool)
-            test_cv_ind = np.zeros((train_files.shape[0],)).astype(bool)
+            train_cv_ind = np.zeros((train_names.shape[0], n_ensemble)).astype(bool)
+            test_cv_ind = np.zeros(train_names.shape).astype(bool)
 
             train_images = []
             # For each driver
@@ -279,26 +273,34 @@ if n_fold:
                     for state in avail_states:
                         # Get imgs_per_driver images (using all the images can overfit)
                         driver_state_imgs = driver_imgs.iloc[np.array(driver_imgs.classname == state)].img.values
-                        train_img_index = np.random.choice(driver_state_imgs.shape[0],
-                                                           int(driver_state_imgs.shape[0] * percent_images),
-                                                           replace=False)
-                        train_images[i_train] += list(driver_state_imgs[train_img_index])
+                        driver_state_imgs = map(lambda x: str('imgs' + train_sub + state + '/' + x), driver_state_imgs)
+                        train_images[i_train] += list(driver_state_imgs)
                 train_images[i_train] = np.array(train_images[i_train])
 
             test_images = []
             # Use all images of the test driver as test
             test_cv_drivers = drivers_index[test_driver_index]
             for driver in test_cv_drivers:
-                test_images += list(drivers.loc[driver].img.values)
+                driver_state_imgs = list(drivers.loc[driver].img)
+                driver_state_imgs = map(lambda x: str('imgs' + train_sub + state + '/' + x), driver_state_imgs)
+                test_images += list(driver_state_imgs)
             test_images = np.array(test_images)
 
             for i, file_name in enumerate(train_names):
-                img_name = file_name.split('/')[-1]
                 for i_train in range(n_ensemble):
-                    if img_name in train_images[i_train]:
+                    if file_name in train_images[i_train]:
                         train_cv_ind[i, i_train] = True
-                if img_name in test_images:
+                if file_name in test_images:
                     test_cv_ind[i] = True
+                    # Get the train / test split
+
+            X_train = []
+            Y_train = []
+            X_train_n_imgs = []
+            for i_train in range(n_ensemble):
+                X_train.append(train_names[train_cv_ind[:, i_train]])
+                Y_train.append(train_labels_dummy[train_cv_ind[:, i_train], :])
+            X_test, Y_test = train_names[test_cv_ind], train_labels_dummy[test_cv_ind, :]
 
             """
             Compile Model
@@ -323,6 +325,7 @@ if n_fold:
                     print('Epoch %d' % epoch_i)
                     # For each training set copy training set
                     X_train_cp = np.array(X_train[i_train], copy=True)
+                    print(X_train_cp)
                     np.random.seed(epoch_i)
                     # Randomize batch order
                     batch_order = np.random.choice(range(X_train_cp.shape[0]), X_train_cp.shape[0],
