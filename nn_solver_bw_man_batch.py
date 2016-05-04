@@ -170,7 +170,7 @@ img_size_x = 64
 # Number of experiments
 n_montecarlo = 1
 # Number of folds per training set, 0 means no CV
-n_fold = 0
+n_fold = 4
 
 # Transmutations on train images
 transmutation = False

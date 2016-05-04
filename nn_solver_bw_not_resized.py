@@ -104,18 +104,18 @@ def img_leftright(img, right):
 def imp_batch(img_names):
     """
     Read and preprocess batch of images
-    :param img_names: list of image file names
+    :param img_names: array of image file names
     :return: image array
     """
-    img_arr = np.zeros((len(img_names), img_rows, img_cols))
+    img_arr = np.zeros((img_names.shape[0], img_rows, img_cols))
     for i, img in enumerate(img_names):
         # read
         img = imread(img)
         # convert to gray
         img = rgb2gray(img)
         img_arr[i] = img
-    img_reshaped = np.zeros((len(img_names), 1, img_rows, img_cols)).astype('float32')
-    img_reshaped = img_reshaped[:, 0, :, :]
+    img_reshaped = np.zeros((img_names.shape[0], 1, img_rows, img_cols)).astype('float32')
+    img_reshaped[:, 0, :, :] = img_arr
     return img_reshaped
 
 
@@ -131,6 +131,13 @@ def cnn_model():
     """
     inner layers start
     """
+    model.add(Convolution2D(32, nb_conv, nb_conv))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
+    model.add(Dropout(0.25))
+
+    model.add(Convolution2D(32, nb_conv, nb_conv))
+    model.add(Activation('relu'))
     model.add(Convolution2D(32, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
@@ -163,14 +170,18 @@ Vars
 # Output file name
 submit_name = 'bw_640x480_v2.csv'
 
+# Train and test location
+train_sub = "/train/"
+test_sub = "/test/"
+
+# Input image size
+img_size_y = 480
+img_size_x = 640
+
 # To debug?
 debug = False
 # How many images to show?
 debug_n = 100
-
-# Input image size
-img_size_y = 24
-img_size_x = 32
 
 # Number of experiments
 n_montecarlo = 1
@@ -189,7 +200,7 @@ batch_size = 32
 # Number of training batches
 nb_batch = 100
 # At what frequency of batches to print prediction results
-man_verbose = 5
+man_verbose = 0
 # Number of NN epochs
 nb_epoch = 100
 # Output classes
@@ -202,8 +213,6 @@ nb_conv = 3
 # learning rate update, index is the batch round
 lr_updates = {0: 0.03, 1001: 0.01}
 
-train_sub = "/trainResizedSmall/"
-test_sub = "/testResizedSmall/"
 """
 Start program
 """
@@ -325,7 +334,6 @@ if n_fold:
                     print('Epoch %d' % epoch_i)
                     # For each training set copy training set
                     X_train_cp = np.array(X_train[i_train], copy=True)
-                    print(X_train_cp)
                     np.random.seed(epoch_i)
                     # Randomize batch order
                     batch_order = np.random.choice(range(X_train_cp.shape[0]), X_train_cp.shape[0],
@@ -339,22 +347,36 @@ if n_fold:
                             print('lr changed to %f' % lr_updates[batch_count])
                             train_models.optimizer.lr.set_value(lr_updates[batch_count])
                         if (batch_i + batch_size) < X_train_cp.shape[0]:
-                            train_models.train_on_batch(X_train_cp[batch_i: batch_i + batch_size],
-                                                        Y_train_cp[batch_i: batch_i + batch_size], accuracy=True)
+                            batch_names = X_train_cp[batch_i: batch_i + batch_size]
+                            batch_train = imp_batch(batch_names)
+                            train_models.train_on_batch(batch_train, Y_train_cp[batch_i: batch_i + batch_size],
+                                                        accuracy=True)
+                            score = train_models.evaluate(batch_train, Y_train_cp[batch_i: batch_i + batch_size],
+                                                          verbose=0, show_accuracy=True)
+                            print('For batch %d: train score: %.2f, train accuracy: %.3f' % (i_train, score[0],
+                                                                                             score[1]))
                         else:
-                            train_models.train_on_batch(X_train_cp[batch_i:], Y_train_cp[batch_i:], accuracy=True)
+                            batch_names = X_train_cp[batch_i:]
+                            batch_train = imp_batch(batch_names)
+                            train_models.train_on_batch(batch_train, Y_train_cp[batch_i:], accuracy=True)
+                            score = train_models.evaluate(batch_train, Y_train_cp[batch_i:],
+                                                          verbose=0, show_accuracy=True)
+                            print('For batch %d: train score: %.2f, train accuracy: %.3f' % (i_train, score[0],
+                                                                                             score[1]))
                         batch_count += 1
                         # Stop training current batch if gotten to nb_batches
                         if man_verbose:
                             if not (batch_count % man_verbose):
                                 print('Currently in batch %d' % batch_count)
+                                # score = train_models.evaluate(X_train[i_train], Y_train[i_train], verbose=0,
+                                #                               show_accuracy=True)
                                 score = train_models.evaluate(X_train[i_train], Y_train[i_train], verbose=0,
                                                               show_accuracy=True)
                                 print('For batch %d: train score: %.2f, train accuracy: %.3f' % (i_train, score[0],
                                                                                                  score[1]))
-                                score = train_models.evaluate(X_test, Y_test, verbose=0, show_accuracy=True)
-                                print('For batch %d: test score: %.2f, test accuracy: %.3f' % (
-                                      i_train, score[0], score[1]))
+                                # score = train_models.evaluate(X_test, Y_test, verbose=0, show_accuracy=True)
+                                # print('For batch %d: test score: %.2f, test accuracy: %.3f' % (
+                                #       i_train, score[0], score[1]))
                         if batch_count == nb_batch:
                             break
                     # Stop training current batch if gotten to nb_batches
