@@ -101,17 +101,22 @@ def img_leftright(img, right):
     return tmp_img
 
 
-def imp_img(img_name):
+def imp_batch(img_names):
     """
-    Read and preprocess images
-    :param img_name: image file name
+    Read and preprocess batch of images
+    :param img_names: list of image file names
     :return: image array
     """
-    # read
-    img = imread(img_name)
-    # convert to gray
-    img = rgb2gray(img)
-    return img
+    img_arr = np.zeros((len(img_names), img_rows, img_cols))
+    for i, img in enumerate(img_names):
+        # read
+        img = imread(img)
+        # convert to gray
+        img = rgb2gray(img)
+        img_arr[i] = img
+    img_reshaped = np.zeros((len(img_names), 1, img_rows, img_cols)).astype('float32')
+    img_reshaped = img_reshaped[:, 0, :, :]
+    return img_reshaped
 
 
 def cnn_model():
@@ -156,7 +161,7 @@ def cnn_model():
 Vars
 """
 # Output file name
-submit_name = 'rgb_64x48_v2.csv'
+submit_name = 'bw_640x480_v2.csv'
 
 # To debug?
 debug = False
@@ -164,26 +169,13 @@ debug = False
 debug_n = 100
 
 # Input image size
-img_size_y = 48
-img_size_x = 64
+img_size_y = 24
+img_size_x = 32
 
 # Number of experiments
 n_montecarlo = 1
 # Number of folds per training set, 0 means no CV
 n_fold = 0
-
-# Transmutations on train images
-transmutation = False
-# Shear on train
-shear_angle = 3
-# Rotate on train
-rotate_angle = 3
-# Scaling factor on train
-scale_factor = 0.05
-# Up-down movement factor on train
-up_factor = 0.05
-# left-right movement factor on train
-right_factor = 0.05
 
 # Number of ensembles of drivers
 n_ensemble = 1
@@ -196,11 +188,11 @@ percent_images = 1.0
 # input image dimensions
 img_rows, img_cols = img_size_y, img_size_x
 # NN's batch size
-batch_size = 64
+batch_size = 32
 # Number of training batches
-nb_batch = 3000
+nb_batch = 100
 # At what frequency of batches to print prediction results
-man_verbose = 100
+man_verbose = 5
 # Number of NN epochs
 nb_epoch = 100
 # Output classes
@@ -212,7 +204,7 @@ nb_pool = 2
 # convolution kernel size
 nb_conv = 3
 # learning rate update, index is the batch round
-lr_updates = {0: 0.003, 1001: 0.001}
+lr_updates = {0: 0.03, 1001: 0.01}
 
 """
 Start program
@@ -221,7 +213,7 @@ Start program
 # Read images
 # Train
 path = "imgs"
-train_folders = sorted(glob.glob(path + "/trainResized/*"))
+train_folders = sorted(glob.glob(path + "/trainResizedSmall/*"))
 train_names = []
 for fol in train_folders:
     train_names += (glob.glob(fol + '/*'))
@@ -229,16 +221,10 @@ for fol in train_folders:
 train_files = np.zeros((len(train_names), img_size_y, img_size_x)).astype('float32')
 train_labels = np.zeros((len(train_names),)).astype(str)
 for i, name_file in enumerate(train_names):
-    image = imp_img(name_file)
-    train_files[i, :, :] = image
     train_labels[i] = name_file.split('/')[-2]
 
 # Test
-test_names = sorted(glob.glob(path + "/testResized/*"))
-test_files = np.zeros((len(test_names), img_size_y, img_size_x)).astype('float32')
-for i, name_file in enumerate(test_names):
-    image = imp_img(name_file)
-    test_files[i, :, :] = image
+test_names = sorted(glob.glob(path + "/testResizedSmall/*"))
 
 label_encoder = LabelEncoder()
 train_labels = label_encoder.fit_transform(train_labels)
@@ -256,12 +242,6 @@ Configure train/test by drivers and images per state
 drivers = pd.DataFrame.from_csv('driver_imgs_list.csv')
 # Get all the drivers
 drivers_index = np.unique(drivers.index.values)
-
-train_files_cnn = np.zeros((train_files.shape[0], 1, img_rows, img_cols)).astype('float32')
-test_files_cnn = np.zeros((test_files.shape[0], 1, img_rows, img_cols)).astype('float32')
-
-train_files_cnn[:, 0, :, :] = train_files
-test_files_cnn[:, 0, :, :] = test_files
 
 # convert class vectors to binary class matrices
 train_labels_dummy = np_utils.to_categorical(train_labels, nb_classes)
@@ -320,15 +300,6 @@ if n_fold:
                 if img_name in test_images:
                     test_cv_ind[i] = True
 
-            # Get the train / test split
-            X_train = []
-            Y_train = []
-            X_train_n_imgs = []
-            for i_train in range(n_ensemble):
-                X_train.append(train_files_cnn[train_cv_ind[:, i_train]].astype('float32'))
-                Y_train.append(train_labels_dummy[train_cv_ind[:, i_train], :])
-            X_test, Y_test = train_files_cnn[test_cv_ind].astype('float32'), train_labels_dummy[test_cv_ind, :]
-
             """
             Compile Model
             """
@@ -353,21 +324,6 @@ if n_fold:
                     # For each training set copy training set
                     X_train_cp = np.array(X_train[i_train], copy=True)
                     np.random.seed(epoch_i)
-                    if transmutation:
-                        rot = np.random.normal(0, rotate_angle, X_train_cp.shape[0])
-                        rescale = np.random.normal(1, scale_factor, X_train_cp.shape[0])
-                        right_move = np.random.normal(0, right_factor, X_train_cp.shape[0])
-                        up_move = np.random.normal(0, up_factor, X_train_cp.shape[0])
-                        shear = np.random.normal(0, shear_angle, X_train_cp.shape[0])
-                        shear = np.deg2rad(shear)
-                        # Preprocess images
-                        for img_i in range(X_train_cp.shape[0]):
-                            afine_tf = tf.AffineTransform(shear=shear[img_i])
-                            X_train_cp[img_i, 0, :, :] = tf.warp(X_train_cp[img_i, 0, :, :], afine_tf)
-                            X_train_cp[img_i, 0, :, :] = tf.rotate(X_train_cp[img_i, 0, :, :], rot[img_i])
-                            X_train_cp[img_i, 0, :, :] = img_rescale(X_train_cp[img_i, 0, :, :], rescale[img_i])
-                            X_train_cp[img_i, 0, :, :] = img_leftright(X_train_cp[img_i, 0, :, :], right_move[img_i])
-                            X_train_cp[img_i, 0, :, :] = img_updown(X_train_cp[img_i, 0, :, :], up_move[img_i])
                     # Randomize batch order
                     batch_order = np.random.choice(range(X_train_cp.shape[0]), X_train_cp.shape[0],
                                                    replace=False)
@@ -461,21 +417,6 @@ for i_train in range(n_ensemble):
         # For each training set copy training set
         X_train_cp = np.array(X_train[i_train], copy=True)
         np.random.seed(epoch_i)
-        if transmutation:
-            rot = np.random.normal(0, rotate_angle, X_train_cp.shape[0])
-            rescale = np.random.normal(1, scale_factor, X_train_cp.shape[0])
-            right_move = np.random.normal(0, right_factor, X_train_cp.shape[0])
-            up_move = np.random.normal(0, up_factor, X_train_cp.shape[0])
-            shear = np.random.normal(0, shear_angle, X_train_cp.shape[0])
-            shear = np.deg2rad(shear)
-            # Preprocess images
-            for img_i in range(X_train_cp.shape[0]):
-                afine_tf = tf.AffineTransform(shear=shear[img_i])
-                X_train_cp[img_i, 0, :, :] = tf.warp(X_train_cp[img_i, 0, :, :], afine_tf)
-                X_train_cp[img_i, 0, :, :] = tf.rotate(X_train_cp[img_i, 0, :, :], rot[img_i])
-                X_train_cp[img_i, 0, :, :] = img_rescale(X_train_cp[img_i, 0, :, :], rescale[img_i])
-                X_train_cp[img_i, 0, :, :] = img_leftright(X_train_cp[img_i, 0, :, :], right_move[img_i])
-                X_train_cp[img_i, 0, :, :] = img_updown(X_train_cp[img_i, 0, :, :], up_move[img_i])
         # Randomize batch order
         batch_order = np.random.choice(range(X_train_cp.shape[0]), X_train_cp.shape[0],
                                        replace=False)
