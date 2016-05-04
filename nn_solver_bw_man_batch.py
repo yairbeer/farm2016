@@ -156,7 +156,7 @@ def cnn_model():
 Vars
 """
 # Output file name
-submit_name = 'rgb_32x24_v2.csv'
+submit_name = 'rgb_64x48_v2.csv'
 
 # To debug?
 debug = False
@@ -164,8 +164,8 @@ debug = False
 debug_n = 100
 
 # Input image size
-img_size_y = 24
-img_size_x = 32
+img_size_y = 48
+img_size_x = 64
 
 # Number of experiments
 n_montecarlo = 1
@@ -185,9 +185,9 @@ up_factor = 0.05
 right_factor = 0.05
 
 # Number of ensembles of drivers
-n_ensemble = 2
+n_ensemble = 1
 # What percent of the drivers to use in each ensemble
-percent_drivers = 0.8
+percent_drivers = 1.0
 # What percent of the drivers to use in each ensemble
 percent_images = 1.0
 
@@ -197,9 +197,9 @@ img_rows, img_cols = img_size_y, img_size_x
 # NN's batch size
 batch_size = 64
 # Number of training batches
-nb_batch = 150
+nb_batch = 3000
 # At what frequency of batches to print prediction results
-man_verbose = 20
+man_verbose = 100
 # Number of NN epochs
 nb_epoch = 100
 # Output classes
@@ -211,7 +211,7 @@ nb_pool = 2
 # convolution kernel size
 nb_conv = 3
 # learning rate update, index is the batch round
-lr_updates = {0: 0.03, 100: 0.01}
+lr_updates = {0: 0.003, 1001: 0.001}
 
 """
 Start program
@@ -220,7 +220,7 @@ Start program
 # Read images
 # Train
 path = "imgs"
-train_folders = sorted(glob.glob(path + "/trainResizedSmall/*"))
+train_folders = sorted(glob.glob(path + "/trainResized/*"))
 train_names = []
 for fol in train_folders:
     train_names += (glob.glob(fol + '/*'))
@@ -233,7 +233,7 @@ for i, name_file in enumerate(train_names):
     train_labels[i] = name_file.split('/')[-2]
 
 # Test
-test_names = sorted(glob.glob(path + "/testResizedSmall/*"))
+test_names = sorted(glob.glob(path + "/testResized/*"))
 test_files = np.zeros((len(test_names), img_size_y, img_size_x)).astype('float32')
 for i, name_file in enumerate(test_names):
     image = imp_img(name_file)
@@ -241,8 +241,6 @@ for i, name_file in enumerate(test_names):
 
 label_encoder = LabelEncoder()
 train_labels = label_encoder.fit_transform(train_labels)
-# print(train_files.shape, test_files.shape)
-# print(np.unique(train_labels))
 
 """
 Image processing
@@ -479,7 +477,7 @@ for i_train in range(n_ensemble):
         batch_order = np.random.choice(range(X_train_cp.shape[0]), X_train_cp.shape[0],
                                        replace=False)
         X_train_cp = X_train_cp[batch_order]
-        Y_train_cp = Y_train[i_train][batch_order]
+        Y_train_cp = Y_train[i_train][batch_order, :]
         # Solve epoch
         for batch_i in range(0, X_train_cp.shape[0], batch_size):
             # Update learning rate if needed
