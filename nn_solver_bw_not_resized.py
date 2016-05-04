@@ -119,44 +119,33 @@ def imp_batch(img_names):
     return img_reshaped
 
 
-def eval_batch(X_batch, y_batch, n_samples):
-    """
-    evaluate on
-    :param X_batch:
-    :param y_batch:
-    :return:
-    """
-    for i, img in enumerate(img_names):
-        # read
-        img = imread(img)
-        # convert to gray
-        img = rgb2gray(img)
-        img_arr[i] = img
-    img_reshaped = np.zeros((img_names.shape[0], 1, img_rows, img_cols)).astype('float32')
-    img_reshaped[:, 0, :, :] = img_arr
-    return img_reshaped
-
-
 def cnn_model():
     """
     Create CNN model
     :return: model
     """
     model = Sequential()
-    model.add(Convolution2D(32, nb_conv, nb_conv,
+    model.add(Convolution2D(64, nb_conv, nb_conv,
                             border_mode='valid', input_shape=(1, img_rows, img_cols)))
     model.add(Activation('relu'))
     """
     inner layers start
     """
-    model.add(Convolution2D(32, nb_conv, nb_conv))
+    model.add(Convolution2D(64, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     model.add(Dropout(0.25))
 
-    model.add(Convolution2D(32, nb_conv, nb_conv))
+    model.add(Convolution2D(128, nb_conv, nb_conv))
     model.add(Activation('relu'))
-    model.add(Convolution2D(32, nb_conv, nb_conv))
+    model.add(Convolution2D(128, nb_conv, nb_conv))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
+    model.add(Dropout(0.5))
+
+    model.add(Convolution2D(256, nb_conv, nb_conv))
+    model.add(Activation('relu'))
+    model.add(Convolution2D(256, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     model.add(Dropout(0.5))
@@ -209,7 +198,7 @@ img_rows, img_cols = img_size_y, img_size_x
 # NN's batch size
 batch_size = 32
 # Number of training batches
-nb_batch = 100
+nb_batch = 200
 # At what frequency of batches to print prediction results
 man_verbose = 0
 # Number of NN epochs
