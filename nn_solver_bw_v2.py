@@ -142,6 +142,32 @@ def eval_randomized(data_names, data_results, n_test, nn_model):
     return score
 
 
+def predict_batch(data_names, classes, nn_model):
+    """
+    predict probability in batches
+    :param data_names: images paths
+    :param nn_model: CNN model
+    :return: none
+    """
+    n_test = data_names.shape[0]
+    predicted_prob = np.zeros((n_test, classes))
+
+    print('calculating in %d batches' % len(range(0, X_train_cp.shape[0], batch_size)))
+    for batch_i in range(0, n_test, batch_size):
+        print('batch %d' % batch_i)
+        # Update learning rate if needed
+        if (batch_i + batch_size) < n_test:
+            batch_names = data_names[batch_i: batch_i + batch_size]
+            batch_train = imp_batch(batch_names)
+            predicted_prob[batch_i: batch_i + batch_size, :] = nn_model.predict_proba(batch_train,
+                                                                                      batch_size=batch_size, verbose=1)
+        else:
+            batch_names = data_names[batch_i:]
+            batch_train = imp_batch(batch_names)
+            predicted_prob[batch_i:, :] = nn_model.predict_proba(batch_train, batch_size=batch_size, verbose=1)
+    return predicted_prob
+
+
 def cnn_model():
     """
     Create CNN model
@@ -159,20 +185,20 @@ def cnn_model():
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     model.add(Dropout(0.5))
 
-    # model.add(Convolution2D(64, nb_conv, nb_conv))
-    # model.add(Activation('relu'))
-    # model.add(Convolution2D(64, nb_conv, nb_conv))
-    # model.add(Activation('relu'))
-    # model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-    # model.add(Dropout(0.5))
-    #
-    # model.add(Convolution2D(64, nb_conv, nb_conv))
-    # model.add(Activation('relu'))
-    # model.add(Convolution2D(64, nb_conv, nb_conv))
-    # model.add(Activation('relu'))
-    # model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-    # model.add(Dropout(0.5))
-    #
+    model.add(Convolution2D(64, nb_conv, nb_conv))
+    model.add(Activation('relu'))
+    model.add(Convolution2D(64, nb_conv, nb_conv))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
+    model.add(Dropout(0.5))
+
+    model.add(Convolution2D(64, nb_conv, nb_conv))
+    model.add(Activation('relu'))
+    model.add(Convolution2D(64, nb_conv, nb_conv))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
+    model.add(Dropout(0.5))
+
     model.add(Flatten())
     model.add(Dense(256))
     model.add(Activation('relu'))
@@ -196,12 +222,12 @@ Vars
 submit_name = 'bw_160x120_v2.csv'
 
 # Train and test location
-train_sub = "/trainResizedSmall/"
-test_sub = "/testResizedSmall/"
+train_sub = "/trainResized160/"
+test_sub = "/testResized160/"
 
 # Input image size
-img_size_y = 24
-img_size_x = 32
+img_size_y = 120
+img_size_x = 160
 
 # To debug?
 debug = False
@@ -209,7 +235,7 @@ debug = False
 debug_n = 100
 
 # Number of folds per training set, 0 means no CV
-n_fold = 0
+n_fold = 2
 
 # Number of ensembles of drivers
 n_ensemble = 1
@@ -221,7 +247,7 @@ img_rows, img_cols = img_size_y, img_size_x
 # NN's batch size
 batch_size = 64
 # Number of training batches
-nb_batch = 200
+nb_batch = 3000
 # At what frequency of batches to print prediction results
 man_verbose = 30
 # Number of NN epochs
@@ -489,7 +515,8 @@ for i_train in range(n_ensemble):
             break
 
     # Fit calculated model to the test data
-    predict_test.append(train_model.predict_proba(imp_batch(test_names), batch_size=batch_size, verbose=1))
+    predict_test.append(predict_batch(test_names, 10, train_model))
+    print(predict_test[0])
 
 ensemble_predicted_results = np.zeros(predict_test[0].shape)
 for mat in predict_test:
