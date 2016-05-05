@@ -425,7 +425,7 @@ if n_fold:
                     break
 
             # Fit calculated model to the test data
-            cv_predict_test.append(train_model.predict_proba(imp_batch(X_test), batch_size=batch_size, verbose=1))
+            cv_predict_test.append(predict_batch(train_labels[test_cv_ind], 10, train_model))
 
         cv_ensemble_predicted_results = np.zeros(cv_predict_test[0].shape)
         for mat in cv_predict_test:
