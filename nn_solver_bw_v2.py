@@ -196,12 +196,12 @@ Vars
 submit_name = 'bw_160x120_v2.csv'
 
 # Train and test location
-train_sub = "/trainResized/"
-test_sub = "/testResized/"
+train_sub = "/trainResized160/"
+test_sub = "/testResized160/"
 
 # Input image size
-img_size_y = 48
-img_size_x = 64
+img_size_y = 120
+img_size_x = 160
 
 # To debug?
 debug = False
@@ -225,13 +225,13 @@ batch_size = 64
 # Number of training batches
 nb_batch = 3000
 # At what frequency of batches to print prediction results
-man_verbose = 50
+man_verbose = 100
 # Number of NN epochs
 nb_epoch = 100
 # Output classes
 nb_classes = 10
 # Number of images for random evaluating
-n_eval = 500
+n_eval = 2000
 
 # size of pooling area for max pooling
 nb_pool = 2
