@@ -119,26 +119,26 @@ def imp_batch(img_names):
     return img_reshaped
 
 
-def eval_randomized(X_data_names, X_data_results, n_test, nn_model):
+def eval_randomized(data_names, data_results, n_test, nn_model):
     """
     Evaluate score only on part of the data
-    :param X_data_names: images paths
-    :param X_data_results: Corresponding results
+    :param data_names: images paths
+    :param data_results: Corresponding results
     :param n_test: number of evaluated images
     :param nn_model: CNN model
     :return: none
     """
-    image_indexes = np.random.choice(range(X_data_names.shape[0]), n_test, replace=False)
-    X_data_names = X_data_names[image_indexes]
-    X_data_results = X_data_results[image_indexes]
-    img_arr = np.zeros((n_test, img_rows, img_cols))
-    for i, img in enumerate(X_data_names):
+    image_indexes = np.random.choice(range(data_names.shape[0]), n_test, replace=False)
+    data_names = data_names[image_indexes]
+    data_results = data_results[image_indexes, :]
+    img_arr = np.zeros((n_test, 1, img_rows, img_cols)).astype('float32')
+    for i, img in enumerate(data_names):
         # read
         img = imread(img)
         # convert to gray
         img = rgb2gray(img)
-        img_arr[i] = img
-    score = train_models.evaluate(img_arr, X_data_results, verbose=0, show_accuracy=True)
+        img_arr[i, 0] = img
+    score = nn_model.evaluate(img_arr, data_results, verbose=0, show_accuracy=True)
     return score
 
 
@@ -148,20 +148,20 @@ def cnn_model():
     :return: model
     """
     model = Sequential()
-    model.add(Convolution2D(32, nb_conv, nb_conv,
+    model.add(Convolution2D(64, nb_conv, nb_conv,
                             border_mode='valid', input_shape=(1, img_rows, img_cols)))
     model.add(Activation('relu'))
     """
     inner layers start
     """
-    model.add(Convolution2D(32, nb_conv, nb_conv))
+    model.add(Convolution2D(64, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-    model.add(Dropout(0.25))
+    model.add(Dropout(0.5))
 
-    model.add(Convolution2D(32, nb_conv, nb_conv))
+    model.add(Convolution2D(64, nb_conv, nb_conv))
     model.add(Activation('relu'))
-    model.add(Convolution2D(32, nb_conv, nb_conv))
+    model.add(Convolution2D(64, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     model.add(Dropout(0.5))
@@ -174,7 +174,9 @@ def cnn_model():
     model.add(Dropout(0.5))
 
     model.add(Flatten())
-    model.add(Dense(128))
+    model.add(Dense(256))
+    model.add(Activation('relu'))
+    model.add(Dense(256))
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
     """
@@ -194,12 +196,12 @@ Vars
 submit_name = 'bw_160x120_v2.csv'
 
 # Train and test location
-train_sub = "/trainResized160/"
-test_sub = "/testResized160/"
+train_sub = "/trainResized/"
+test_sub = "/testResized/"
 
 # Input image size
-img_size_y = 120
-img_size_x = 160
+img_size_y = 48
+img_size_x = 64
 
 # To debug?
 debug = False
@@ -221,9 +223,9 @@ img_rows, img_cols = img_size_y, img_size_x
 # NN's batch size
 batch_size = 64
 # Number of training batches
-nb_batch = 200
+nb_batch = 3000
 # At what frequency of batches to print prediction results
-man_verbose = 0
+man_verbose = 50
 # Number of NN epochs
 nb_epoch = 100
 # Output classes
@@ -315,9 +317,12 @@ if n_fold:
             # Use all images of the test driver as test
             test_cv_drivers = drivers_index[test_driver_index]
             for driver in test_cv_drivers:
-                driver_state_imgs = list(drivers.loc[driver].img)
-                driver_state_imgs = map(lambda x: str('imgs' + train_sub + state + '/' + x), driver_state_imgs)
-                test_images += list(driver_state_imgs)
+                driver_imgs = drivers.loc[driver]
+                avail_states = np.unique(driver_imgs.classname.values)
+                for state in avail_states:
+                    driver_state_imgs = driver_imgs.iloc[np.array(driver_imgs.classname == state)].img.values
+                    driver_state_imgs = map(lambda x: str('imgs' + train_sub + state + '/' + x), driver_state_imgs)
+                    test_images += list(driver_state_imgs)
             test_images = np.array(test_images)
 
             for i, file_name in enumerate(train_names):
@@ -353,7 +358,7 @@ if n_fold:
             for i_train in range(n_ensemble):
                 print('Ensemble trainer %d' % i_train)
                 # Build model
-                train_models = cnn_model()
+                train_model = cnn_model()
                 batch_count = 0
                 for epoch_i in range(nb_epoch):
                     print('Epoch %d' % epoch_i)
@@ -370,24 +375,24 @@ if n_fold:
                         # Update learning rate if needed
                         if batch_count in lr_updates:
                             print('lr changed to %f' % lr_updates[batch_count])
-                            train_models.optimizer.lr.set_value(lr_updates[batch_count])
+                            train_model.optimizer.lr.set_value(lr_updates[batch_count])
                         if (batch_i + batch_size) < X_train_cp.shape[0]:
                             batch_names = X_train_cp[batch_i: batch_i + batch_size]
                             batch_train = imp_batch(batch_names)
-                            train_models.train_on_batch(batch_train, Y_train_cp[batch_i: batch_i + batch_size],
-                                                        accuracy=True)
+                            train_model.train_on_batch(batch_train, Y_train_cp[batch_i: batch_i + batch_size],
+                                                       accuracy=True)
                         else:
                             batch_names = X_train_cp[batch_i:]
                             batch_train = imp_batch(batch_names)
-                            train_models.train_on_batch(batch_train, Y_train_cp[batch_i:], accuracy=True)
+                            train_model.train_on_batch(batch_train, Y_train_cp[batch_i:], accuracy=True)
                         batch_count += 1
                         # Stop training current batch if gotten to nb_batches
                         if man_verbose:
                             if not (batch_count % man_verbose):
                                 print('For batch %d' % batch_count)
-                                score = eval_randomized(X_train_cp, Y_train_cp, n_eval, train_models)
+                                score = eval_randomized(X_train_cp, Y_train_cp, n_eval, train_model)
                                 print('Train score: %.2f, train accuracy: %.3f' % (score[0], score[1]))
-                                score = eval_randomized(X_test, Y_test, 1000, train_models)
+                                score = eval_randomized(X_test, Y_test, n_eval, train_model)
                                 print('Test score: %.2f, test accuracy: %.3f' % (score[0], score[1]))
                         if batch_count == nb_batch:
                             break
@@ -396,7 +401,7 @@ if n_fold:
                         break
 
                 # Fit calculated model to the test data
-                cv_predict_test.append(train_models.predict_proba(X_test, batch_size=batch_size, verbose=1))
+                # cv_predict_test.append(train_model.predict_proba(X_test, batch_size=batch_size, verbose=1))
 
             cv_ensemble_predicted_results = np.zeros(cv_predict_test[0].shape)
             for mat in cv_predict_test:
