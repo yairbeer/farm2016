@@ -125,27 +125,27 @@ def cnn_model():
     :return: model
     """
     model = Sequential()
-    model.add(Convolution2D(64, nb_conv, nb_conv,
+    model.add(Convolution2D(32, nb_conv, nb_conv,
                             border_mode='valid', input_shape=(1, img_rows, img_cols)))
     model.add(Activation('relu'))
     """
     inner layers start
     """
-    model.add(Convolution2D(64, nb_conv, nb_conv))
+    model.add(Convolution2D(32, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     model.add(Dropout(0.25))
 
-    model.add(Convolution2D(128, nb_conv, nb_conv))
+    model.add(Convolution2D(32, nb_conv, nb_conv))
     model.add(Activation('relu'))
-    model.add(Convolution2D(128, nb_conv, nb_conv))
+    model.add(Convolution2D(32, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     model.add(Dropout(0.5))
 
-    model.add(Convolution2D(256, nb_conv, nb_conv))
+    model.add(Convolution2D(64, nb_conv, nb_conv))
     model.add(Activation('relu'))
-    model.add(Convolution2D(256, nb_conv, nb_conv))
+    model.add(Convolution2D(64, nb_conv, nb_conv))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
     model.add(Dropout(0.5))
