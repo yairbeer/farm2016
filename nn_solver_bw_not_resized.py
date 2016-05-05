@@ -228,6 +228,8 @@ man_verbose = 0
 nb_epoch = 100
 # Output classes
 nb_classes = 10
+# Number of images for random evaluating
+n_eval = 500
 
 # size of pooling area for max pooling
 nb_pool = 2
@@ -383,7 +385,7 @@ if n_fold:
                         if man_verbose:
                             if not (batch_count % man_verbose):
                                 print('For batch %d' % batch_count)
-                                score = eval_randomized(X_train_cp, Y_train_cp, 1000, train_models)
+                                score = eval_randomized(X_train_cp, Y_train_cp, n_eval, train_models)
                                 print('Train score: %.2f, train accuracy: %.3f' % (score[0], score[1]))
                                 score = eval_randomized(X_test, Y_test, 1000, train_models)
                                 print('Test score: %.2f, test accuracy: %.3f' % (score[0], score[1]))
